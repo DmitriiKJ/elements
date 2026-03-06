@@ -23,6 +23,7 @@
 #include <wallet/rpc/util.h>
 #include <wallet/spend.h>
 #include <wallet/wallet.h>
+#include "crypto/shrincs/shrincs.h"
 
 using wallet::BlindDetails;
 using wallet::CAddressBookData;
@@ -59,6 +60,25 @@ public:
 static CSecp256k1Init instance_of_csecp256k1;
 }
 
+std::vector<unsigned char> hex_to_bytes(std::string hex) {
+    // Видаляємо "0x", якщо він є
+    if (hex.compare(0, 2, "0x") == 0) {
+        hex = hex.substr(2);
+    }
+
+    if (hex.length() % 2 != 0) {
+        throw std::runtime_error("Hex string must have an even length");
+    }
+
+    std::vector<unsigned char> bytes;
+    for (size_t i = 0; i < hex.length(); i += 2) {
+        std::string byteString = hex.substr(i, 2);
+        unsigned char byte = (unsigned char) strtol(byteString.c_str(), nullptr, 16);
+        bytes.push_back(byte);
+    }
+    return bytes;
+}
+
 namespace wallet {
 RPCHelpMan signblock()
 {
@@ -67,6 +87,7 @@ RPCHelpMan signblock()
                 {
                     {"blockhex", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "The hex-encoded block from getnewblockhex"},
                     {"witnessScript", RPCArg::Type::STR_HEX, RPCArg::Optional::OMITTED_NAMED_ARG, "The hex-encoded witness script. Required for dynamic federation blocks. Argument is \"\" when the block is P2WPKH."},
+                    {"pq", RPCArg::Type::BOOL, RPCArg::Default{false}, "Sign block using SHRINCS"},
                 },
                 RPCResult{
                     RPCResult::Type::ARR, "", "",
@@ -121,34 +142,72 @@ RPCHelpMan signblock()
     }
 
     // Expose SignatureData internals in return value in lieu of "Partially Signed Bitcoin Blocks"
-    SignatureData block_sigs;
-    if (block.m_dynafed_params.IsNull()) {
-        GenericSignScript(*spk_man, block.GetBlockHeader(), block.proof.challenge, block_sigs, SCRIPT_NO_SIGHASH_BYTE /* additional_flags */);
-    } else {
-        if (request.params[1].isNull()) {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Signing dynamic blocks requires the witnessScript argument");
+    if (!request.params[2].get_bool())
+    {
+        SignatureData block_sigs;
+        if (block.m_dynafed_params.IsNull()) {
+            GenericSignScript(*spk_man, block.GetBlockHeader(), block.proof.challenge, block_sigs, SCRIPT_NO_SIGHASH_BYTE /* additional_flags */);
+        } else {
+            if (request.params[1].isNull()) {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, "Signing dynamic blocks requires the witnessScript argument");
+            }
+            std::vector<unsigned char> witness_bytes(ParseHex(request.params[1].get_str()));
+            // Note that we're adding the signblockscript to the wallet so it can actually
+            // satisfy witness program scriptpubkeys
+            if (!witness_bytes.empty()) {
+                spk_man->AddCScript(CScript(witness_bytes.begin(), witness_bytes.end()));
+            }
+            GenericSignScript(*spk_man, block.GetBlockHeader(), block.m_dynafed_params.m_current.m_signblockscript, block_sigs, SCRIPT_VERIFY_NONE /* additional_flags */);
         }
-        std::vector<unsigned char> witness_bytes(ParseHex(request.params[1].get_str()));
-        // Note that we're adding the signblockscript to the wallet so it can actually
-        // satisfy witness program scriptpubkeys
-        if (!witness_bytes.empty()) {
-            spk_man->AddCScript(CScript(witness_bytes.begin(), witness_bytes.end()));
-        }
-        GenericSignScript(*spk_man, block.GetBlockHeader(), block.m_dynafed_params.m_current.m_signblockscript, block_sigs, SCRIPT_VERIFY_NONE /* additional_flags */);
-    }
 
-    // Error if sig data didn't "grow"
-    if (!block_sigs.complete && block_sigs.signatures.empty()) {
-        throw JSONRPCError(RPC_VERIFY_ERROR, "Could not sign the block.");
+        // Error if sig data didn't "grow"
+        if (!block_sigs.complete && block_sigs.signatures.empty()) {
+            throw JSONRPCError(RPC_VERIFY_ERROR, "Could not sign the block.");
+        }
+        UniValue ret(UniValue::VARR);
+        for (const auto& signature : block_sigs.signatures) {
+            UniValue obj(UniValue::VOBJ);
+            obj.pushKV("pubkey", HexStr(signature.second.first));
+            obj.pushKV("sig", HexStr(signature.second.second));
+            ret.push_back(obj);
+        }
+        return ret;
     }
-    UniValue ret(UniValue::VARR);
-    for (const auto& signature : block_sigs.signatures) {
+    else
+    {
+        std::string pq_key_hex = gArgs.GetArg("-pqminerkey", "");
+        if (pq_key_hex.empty()) {
+            throw JSONRPCError(RPC_WALLET_ERROR, "No PQ miner key configured! Pass -pqminerkey to the node.");
+        }
+        
+        std::vector<unsigned char> full_key = ParseHex(pq_key_hex);
+        SHRINCS::SecretKey sk = SHRINCS::SecretKey();
+        sk.pk.seed = std::vector<unsigned char>(full_key.begin(), full_key.begin() + 16);
+        sk.pk.root = std::vector<unsigned char>(full_key.begin() + 16, full_key.begin() + 32);
+        sk.sf = std::vector<unsigned char>(full_key.begin() + 32, full_key.begin() + 48);
+        sk.sl = std::vector<unsigned char>(full_key.begin() + 48, full_key.begin() + 64);
+        sk.prf = std::vector<unsigned char>(full_key.begin() + 64, full_key.begin() + 80);
+        sk.seed = std::vector<unsigned char>(full_key.begin() + 80, full_key.begin() + 96);
+
+        unsigned char* raw_sig = SHRINCS::shrincs_sign_stateless(block.GetHash().begin(), sk);
+
+        std::vector<unsigned char> pq_sig(raw_sig, raw_sig + SL_SIZE);
+        delete[] raw_sig;
+
+        UniValue ret(UniValue::VARR);
         UniValue obj(UniValue::VOBJ);
-        obj.pushKV("pubkey", HexStr(signature.second.first));
-        obj.pushKV("sig", HexStr(signature.second.second));
+            
+        std::vector<unsigned char> pubkey;
+        pubkey.reserve(2 * N);
+        pubkey.insert(pubkey.end(), sk.pk.seed.begin(), sk.pk.seed.end());
+        pubkey.insert(pubkey.end(), sk.pk.root.begin(), sk.pk.root.end());
+
+        obj.pushKV("pubkey", HexStr(pubkey));
+        obj.pushKV("sig", HexStr(pq_sig)); 
+            
         ret.push_back(obj);
+        return ret;
     }
-    return ret;
 },
     };
 }

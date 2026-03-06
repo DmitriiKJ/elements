@@ -1435,6 +1435,7 @@ static RPCHelpMan combineblocksigs()
                         },
                     },
                     {"witnessScript", RPCArg::Type::STR_HEX, RPCArg::Optional::OMITTED_NAMED_ARG, "The hex-encoded witnessScript for the signblockscript"},
+                    {"pq", RPCArg::Type::BOOL, RPCArg::Default{false}, "SHRINCS signature"},
                 },
                 RPCResult{
                     RPCResult::Type::OBJ, "", "",
@@ -1460,40 +1461,64 @@ static RPCHelpMan combineblocksigs()
 
     const Consensus::Params& params = Params().GetConsensus();
     const UniValue& sigs = request.params[1].get_array();
-    FillableSigningProvider keystore;
-    SignatureData sig_data;
-    SimpleSignatureCreator signature_creator(block.GetHash(), is_dynafed ? SIGHASH_ALL : 0);
-    for (unsigned int i = 0; i < sigs.size(); i++) {
-        UniValue pubkey_sig = sigs[i];
-        const std::string& pubkey_str = pubkey_sig["pubkey"].get_str();
-        const std::string& sig_str = pubkey_sig["sig"].get_str();
-        if (!IsHex(sig_str) || !IsHex(pubkey_str)) {
-            continue;
-        }
-        std::vector<unsigned char> pubkey_bytes = ParseHex(pubkey_str);
-        std::vector<unsigned char> sig_bytes = ParseHex(sig_str);
-        CPubKey pubkey(pubkey_bytes.begin(), pubkey_bytes.end());
-        if (!pubkey.IsFullyValid()) {
-            throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Bad pubkey");
-        }
-        sig_data.signatures[pubkey.GetID()] = std::make_pair(pubkey, sig_bytes);
-    }
 
-    if (is_dynafed) {
-        if (request.params[2].isNull()) {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Signing dynamic blocks requires the witnessScript argument");
+    if (!request.params[3].get_bool())
+    {
+        FillableSigningProvider keystore;
+        SignatureData sig_data;
+        SimpleSignatureCreator signature_creator(block.GetHash(), is_dynafed ? SIGHASH_ALL : 0);
+        for (unsigned int i = 0; i < sigs.size(); i++) {
+            UniValue pubkey_sig = sigs[i];
+            const std::string& pubkey_str = pubkey_sig["pubkey"].get_str();
+            const std::string& sig_str = pubkey_sig["sig"].get_str();
+            if (!IsHex(sig_str) || !IsHex(pubkey_str)) {
+                continue;
+            }
+            std::vector<unsigned char> pubkey_bytes = ParseHex(pubkey_str);
+            std::vector<unsigned char> sig_bytes = ParseHex(sig_str);
+            CPubKey pubkey(pubkey_bytes.begin(), pubkey_bytes.end());
+            if (!pubkey.IsFullyValid()) {
+                throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Bad pubkey");
+            }
+            sig_data.signatures[pubkey.GetID()] = std::make_pair(pubkey, sig_bytes);
         }
-        std::vector<unsigned char> witness_bytes(ParseHex(request.params[2].get_str()));
-        if (!witness_bytes.empty()) {
-            keystore.AddCScript(CScript(witness_bytes.begin(), witness_bytes.end()));
+
+        if (is_dynafed) {
+            if (request.params[2].isNull()) {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, "Signing dynamic blocks requires the witnessScript argument");
+            }
+            std::vector<unsigned char> witness_bytes(ParseHex(request.params[2].get_str()));
+            if (!witness_bytes.empty()) {
+                keystore.AddCScript(CScript(witness_bytes.begin(), witness_bytes.end()));
+            }
+            // Finalizes the signatures, has no access to keys
+            ProduceSignature(keystore, signature_creator, block.m_dynafed_params.m_current.m_signblockscript, sig_data, SCRIPT_VERIFY_NONE);
+            block.m_signblock_witness = sig_data.scriptWitness;
+        } else {
+            // Finalizes the signatures, has no access to keys
+            ProduceSignature(keystore, signature_creator, block.proof.challenge, sig_data, SCRIPT_NO_SIGHASH_BYTE);
+            block.proof.solution = sig_data.scriptSig;
         }
-        // Finalizes the signatures, has no access to keys
-        ProduceSignature(keystore, signature_creator, block.m_dynafed_params.m_current.m_signblockscript, sig_data, SCRIPT_VERIFY_NONE);
-        block.m_signblock_witness = sig_data.scriptWitness;
-    } else {
-        // Finalizes the signatures, has no access to keys
-        ProduceSignature(keystore, signature_creator, block.proof.challenge, sig_data, SCRIPT_NO_SIGHASH_BYTE);
-        block.proof.solution = sig_data.scriptSig;
+    }
+    else
+    {
+        if (sigs.size() > 0) {
+            std::string sig_str = "";
+            for (int i = 0; i < sigs.size(); i++)
+            {
+                UniValue sig_obj = sigs[i];
+                sig_str += sig_obj["sig"].get_str();
+            }
+            
+            std::vector<unsigned char> raw_sig = ParseHex(sig_str);
+
+            if (is_dynafed) {
+                block.m_signblock_witness.stack.clear();
+                block.m_signblock_witness.stack.push_back(raw_sig);
+            } else {
+                block.proof.solution = CScript(raw_sig.begin(), raw_sig.end());
+            }
+        }
     }
 
     CDataStream ssBlock(SER_NETWORK, PROTOCOL_VERSION | RPCSerializationFlags());

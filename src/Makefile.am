@@ -514,7 +514,22 @@ crypto_libbitcoin_crypto_base_a_SOURCES = \
   crypto/sha512.cpp \
   crypto/sha512.h \
   crypto/siphash.cpp \
-  crypto/siphash.h
+  crypto/siphash.h \
+  crypto/shrincs/address.cpp \
+  crypto/shrincs/address.h \
+  crypto/shrincs/constants.h \
+  crypto/shrincs/fors_c.cpp \
+  crypto/shrincs/fors_c.h \
+  crypto/shrincs/hash.cpp \
+  crypto/shrincs/hash.h \
+  crypto/shrincs/shrincs.cpp \
+  crypto/shrincs/shrincs.h \
+  crypto/shrincs/uxmss.cpp \
+  crypto/shrincs/uxmss.h \
+  crypto/shrincs/wots_c.cpp \
+  crypto/shrincs/wots_c.h \
+  crypto/shrincs/xmss.cpp \
+  crypto/shrincs/xmss.h
 
 if USE_ASM
 crypto_libbitcoin_crypto_base_a_SOURCES += crypto/sha256_sse4.cpp
