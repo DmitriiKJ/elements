@@ -60,25 +60,6 @@ public:
 static CSecp256k1Init instance_of_csecp256k1;
 }
 
-std::vector<unsigned char> hex_to_bytes(std::string hex) {
-    // Видаляємо "0x", якщо він є
-    if (hex.compare(0, 2, "0x") == 0) {
-        hex = hex.substr(2);
-    }
-
-    if (hex.length() % 2 != 0) {
-        throw std::runtime_error("Hex string must have an even length");
-    }
-
-    std::vector<unsigned char> bytes;
-    for (size_t i = 0; i < hex.length(); i += 2) {
-        std::string byteString = hex.substr(i, 2);
-        unsigned char byte = (unsigned char) strtol(byteString.c_str(), nullptr, 16);
-        bytes.push_back(byte);
-    }
-    return bytes;
-}
-
 namespace wallet {
 RPCHelpMan signblock()
 {
@@ -104,6 +85,10 @@ RPCHelpMan signblock()
                 },
         [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
 {
+    bool is_pq = false;
+    if (!request.params[2].isNull())
+        is_pq = request.params[2].get_bool();
+
     if (!g_signed_blocks) {
         throw JSONRPCError(RPC_MISC_ERROR, "Signed blocks are not active for this network.");
     }
@@ -142,7 +127,7 @@ RPCHelpMan signblock()
     }
 
     // Expose SignatureData internals in return value in lieu of "Partially Signed Bitcoin Blocks"
-    if (!request.params[2].get_bool())
+    if (!is_pq)
     {
         SignatureData block_sigs;
         if (block.m_dynafed_params.IsNull()) {

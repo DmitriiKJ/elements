@@ -1449,6 +1449,10 @@ static RPCHelpMan combineblocksigs()
                 },
         [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
 {
+    bool is_pq = false;
+    if (!request.params[3].isNull())
+        is_pq = request.params[3].get_bool();
+
     if (!g_signed_blocks) {
         throw JSONRPCError(RPC_MISC_ERROR, "Signed blocks are not active for this network.");
     }
@@ -1462,7 +1466,7 @@ static RPCHelpMan combineblocksigs()
     const Consensus::Params& params = Params().GetConsensus();
     const UniValue& sigs = request.params[1].get_array();
 
-    if (!request.params[3].get_bool())
+    if (!is_pq)
     {
         FillableSigningProvider keystore;
         SignatureData sig_data;
@@ -1502,6 +1506,12 @@ static RPCHelpMan combineblocksigs()
     }
     else
     {
+        if (request.params[2].isNull()) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Signing dynamic blocks requires the witnessScript argument");
+        }
+        if (!is_dynafed) {
+            throw JSONRPCError(RPC_INVALID_PARAMS, "PQ signature requires activated dynafed");
+        }
         if (sigs.size() > 0) {
             std::string sig_str = "";
             for (int i = 0; i < sigs.size(); i++)
@@ -1512,12 +1522,11 @@ static RPCHelpMan combineblocksigs()
             
             std::vector<unsigned char> raw_sig = ParseHex(sig_str);
 
-            if (is_dynafed) {
-                block.m_signblock_witness.stack.clear();
-                block.m_signblock_witness.stack.push_back(raw_sig);
-            } else {
-                block.proof.solution = CScript(raw_sig.begin(), raw_sig.end());
-            }
+            block.m_signblock_witness.stack.clear();
+            block.m_signblock_witness.stack.push_back(raw_sig);
+
+            std::vector<unsigned char> witness_bytes(ParseHex(request.params[2].get_str()));
+            block.m_signblock_witness.stack.push_back(witness_bytes);
         }
     }
 

@@ -206,6 +206,8 @@ static const CRPCConvertParam vRPCConvertParams[] =
     // ELEMENTS:
     { "calcfastmerkleroot", 0, "leaves" },
     { "combineblocksigs", 1, "signatures" },
+    { "combineblocksigs", 3, "pq" },
+    { "signblock", 2, "pq" },
     { "sendtomainchain", 1, "amount" },
     { "sendtomainchain", 2, "subtractfeefromamount" },
     { "sendtomainchain", 3, "verbose"},
