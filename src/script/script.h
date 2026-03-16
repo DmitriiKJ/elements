@@ -25,7 +25,7 @@
 extern bool g_con_elementsmode;
 
 // Maximum number of bytes pushable to the stack
-static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 520;
+static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 3000;
 
 // Maximum number of non-push operations per script
 static const int MAX_OPS_PER_SCRIPT = 201;
@@ -203,8 +203,10 @@ enum opcodetype
     OP_NOP2 = OP_CHECKLOCKTIMEVERIFY,
     OP_CHECKSEQUENCEVERIFY = 0xb2,
     OP_NOP3 = OP_CHECKSEQUENCEVERIFY,
-    OP_NOP4 = 0xb3,
-    OP_NOP5 = 0xb4,
+    OP_SHRINCS = 0xb3,
+    OP_NOP4 = OP_SHRINCS,
+    OP_MULTISHRINCS = 0xb4,
+    OP_NOP5 = OP_MULTISHRINCS,
     OP_NOP6 = 0xb5,
     OP_NOP7 = 0xb6,
     OP_NOP8 = 0xb7,

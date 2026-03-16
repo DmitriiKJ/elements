@@ -567,6 +567,7 @@ public:
     DummySignatureChecker() {}
     bool CheckECDSASignature(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion, unsigned int flags) const override { return true; }
     bool CheckSchnorrSignature(Span<const unsigned char> sig, Span<const unsigned char> pubkey, SigVersion sigversion, ScriptExecutionData& execdata, ScriptError* serror) const override { return true; }
+    bool CheckSHRINCSSignature(const std::vector<unsigned char>& sig, const std::vector<unsigned char>& pubkey, const CScript& scriptCode, SigVersion sigversion, ScriptExecutionData& execdata, unsigned int flags) const override { return true; }
 };
 const DummySignatureChecker DUMMY_CHECKER;
 

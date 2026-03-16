@@ -35,14 +35,14 @@ def make_signblockscript(num_nodes, required_signers, keys):
     script += "ae" # OP_CHECKMULTISIG
     return script
 
-def make_signblockscript_shrincs(num_nodes, required_signers):
+def make_signblockscript_shrincs(num_nodes, required_signers, keys):
     assert num_nodes >= required_signers
-    script = f"{required_signers:02x}"
-    script += "c1df2f9fb6d83b72d1f86ce437cba3d787e72eb15fa6d02f4d970d1fb68af393"
-    script += "c1df2f9fb6d83b72d1f86ce437cba3d787e72eb15fa6d02f4d970d1fb68af392"
-    script += "c1df2f9fb6d83b72d1f86ce437cba3d787e72eb15fa6d02f4d970d1fb68af392"
-    script += "c1df2f9fb6d83b72d1f86ce437cba3d787e72eb15fa6d02f4d970d1fb68af392"
-    script += f"{num_nodes:02x}" # num keys
+    script = "{}".format(50 + required_signers)
+    for i in range(num_nodes):
+        script += "20"
+        script += keys[i]
+    script += "{}".format(50 + num_nodes) # num keys
+    script += "b4" # OP_MULTISHRINCS
     return script
 
 class BlockSignTest(BitcoinTestFramework):
@@ -192,6 +192,21 @@ class BlockSignTest(BitcoinTestFramework):
         for i in range(num_blocks):
             self.mine_block(transactions)
 
+    def send_to_shrincs_script(self, key):
+        custom_script_hex = "20" + key + "b3"
+
+        decoded_script = self.nodes[0].decodescript(custom_script_hex)
+        
+        p2wsh_address = decoded_script['segwit']['address']
+
+        amount_to_send = 1
+        txid = self.nodes[0].sendtoaddress(p2wsh_address, amount_to_send)
+        
+        self.nodes[0].generate(1)
+        self.sync_all()
+        
+        return txid, custom_script_hex
+
     def run_test(self):
         # Have every node except last import its block signing private key.
         for i in range(self.num_keys):
@@ -236,7 +251,11 @@ class BlockSignTest(BitcoinTestFramework):
         self.log.info("Mine some dynamic federation blocks with txns")
         self.mine_blocks(10, True)
 
-        signblockscript = make_signblockscript_shrincs(self.num_keys, self.required_signers)
+        keys = [
+            "c1df2f9fb6d83b72d1f86ce437cba3d787e72eb15fa6d02f4d970d1fb68af393", "c1df2f9fb6d83b72d1f86ce437cba3d787e72eb15fa6d02f4d970d1fb68af392", "c1df2f9fb6d83b72d1f86ce437cba3d787e72eb15fa6d02f4d970d1fb68af392", "c1df2f9fb6d83b72d1f86ce437cba3d787e72eb15fa6d02f4d970d1fb68af392"
+        ]
+
+        signblockscript = make_signblockscript_shrincs(self.num_keys, self.required_signers, keys)
 
         script_hash = hashlib.sha256(bytes.fromhex(signblockscript)).hexdigest()
         p2wsh_shrincs_script = "0020" + script_hash
@@ -290,12 +309,13 @@ class BlockSignTest(BitcoinTestFramework):
                 pq_sigs += self.nodes[j].signblock(block_hex, signblockscript, True)
             
             pq_combined = self.nodes[0].combineblocksigs(block_hex, pq_sigs, signblockscript, True)
+            assert(pq_combined["complete"])
             
             for j in range(self.num_keys):
                 res = self.nodes[j].submitblock(pq_combined["hex"])
             
-            if res is not None:
-                raise AssertionError(f"SHRINCS block REJECTED by consensus: {res}")
+                if res is not None:
+                    raise AssertionError(f"SHRINCS block REJECTED by consensus: {res}")
             
             self.log.info(f"Mined SHRINCS-signed block #{i + 1}")
 

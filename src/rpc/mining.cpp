@@ -1513,17 +1513,12 @@ static RPCHelpMan combineblocksigs()
             throw JSONRPCError(RPC_INVALID_PARAMS, "PQ signature requires activated dynafed");
         }
         if (sigs.size() > 0) {
-            std::string sig_str = "";
+            block.m_signblock_witness.stack.clear();
             for (int i = 0; i < sigs.size(); i++)
             {
                 UniValue sig_obj = sigs[i];
-                sig_str += sig_obj["sig"].get_str();
+                block.m_signblock_witness.stack.push_back(ParseHex(sig_obj["sig"].get_str()));
             }
-            
-            std::vector<unsigned char> raw_sig = ParseHex(sig_str);
-
-            block.m_signblock_witness.stack.clear();
-            block.m_signblock_witness.stack.push_back(raw_sig);
 
             std::vector<unsigned char> witness_bytes(ParseHex(request.params[2].get_str()));
             block.m_signblock_witness.stack.push_back(witness_bytes);
