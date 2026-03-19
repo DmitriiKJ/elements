@@ -3,6 +3,7 @@
 
 #include <openssl/rand.h>
 #include <vector>
+#include <script/script.h>
 #include "uxmss.h"
 #include "xmss.h"
 #include "fors_c.h"
@@ -40,6 +41,7 @@ namespace SHRINCS {
 
     void generate_random_bytes(unsigned char* buffer, size_t length);
     void parse_idx(const unsigned char* digest, uint32_t* idx_tree, uint32_t* idx_leaf);
+    void shrincs_sig_to_witness(CScriptWitness& witness, std::vector<unsigned char> sig, bool sighash_type_ext);
 
     void shrincs_key_gen(PublicKey& out_pk, SecretKey& out_sk, State& out_state);
     void shrincs_restore(const unsigned char* seed, PublicKey& out_pk, SecretKey& out_sk, State& out_state);

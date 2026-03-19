@@ -192,21 +192,6 @@ class BlockSignTest(BitcoinTestFramework):
         for i in range(num_blocks):
             self.mine_block(transactions)
 
-    def send_to_shrincs_script(self, key):
-        custom_script_hex = "20" + key + "b3"
-
-        decoded_script = self.nodes[0].decodescript(custom_script_hex)
-        
-        p2wsh_address = decoded_script['segwit']['address']
-
-        amount_to_send = 1
-        txid = self.nodes[0].sendtoaddress(p2wsh_address, amount_to_send)
-        
-        self.nodes[0].generate(1)
-        self.sync_all()
-        
-        return txid, custom_script_hex
-
     def run_test(self):
         # Have every node except last import its block signing private key.
         for i in range(self.num_keys):

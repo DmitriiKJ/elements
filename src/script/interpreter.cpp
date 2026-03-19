@@ -578,6 +578,51 @@ const CHashWriter HASHER_TAPLEAF_ELEMENTS = TaggedHash("TapLeaf/elements");
 const CHashWriter HASHER_TAPBRANCH_ELEMENTS = TaggedHash("TapBranch/elements");
 const CHashWriter HASHER_TAPSIGHASH_ELEMENTS = TaggedHash("TapSighash/elements");
 
+bool shrincs_sign_from_stack(std::vector<std::vector<unsigned char> >& stack, bool fRequireMinimal, ScriptError* serror, std::vector<unsigned char>& sig_out) 
+{
+    if (stack.size() < 1)
+        return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+
+    int q = CScriptNum(stacktop(-1), fRequireMinimal).getint();
+    popstack(stack);
+
+    if (q == 0)
+    {
+        if (stack.size() < 6)
+            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+        // Stateless signature divided into 6 parts (520 520 520 520 520 256)
+        for (int i = 0; i < 6; i++)
+        {
+            valtype sign_part = stacktop(-1);
+            popstack(stack);
+
+            sig_out.insert(sig_out.begin(), sign_part.begin(), sign_part.end());
+        }
+    }
+    else
+    {
+        // Stateless signature
+        // (sl wots merkle_path_element*q)
+        if (q > HSF + 1)
+            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+        else if (q == HSF + 1)
+            q = HSF;
+
+        if (stack.size() < (q + 2))
+            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+
+        for (int i = 0; i < q + 2; i++)
+        {
+            valtype sign_part = stacktop(-1);
+            popstack(stack);
+
+            sig_out.insert(sig_out.begin(), sign_part.begin(), sign_part.end());
+        }
+    }
+
+    return true;
+}
+
 bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& script, unsigned int flags, const BaseSignatureChecker& checker, SigVersion sigversion, ScriptExecutionData& execdata, ScriptError* serror)
 {
     static const CScriptNum bnZero(0);
@@ -772,18 +817,22 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
 
                 case OP_SHRINCS:
                 {
-                    // (sig pubkey -- bool)
-                    if (stack.size() < 2)
+                    // (sig q pubkey -- bool)
+                    if (stack.size() < 1)
                         return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
 
-                    valtype& sig    = stacktop(-2);
-                    valtype& pubKey = stacktop(-1);
+                    valtype pubKey = stacktop(-1);
+                    popstack(stack);
+                    
+                    std::vector<unsigned char> sign;
+                    if (!shrincs_sign_from_stack(stack, fRequireMinimal, serror, sign))
+                    {
+                        return false;
+                    }
 
                     CScript scriptCode(pbegincodehash, pend);
 
-                    bool fSuccess = checker.CheckSHRINCSSignature(sig, pubKey, scriptCode, sigversion, execdata, flags);
-                    popstack(stack);
-                    popstack(stack);
+                    bool fSuccess = checker.CheckSHRINCSSignature(sign, pubKey, scriptCode, sigversion, execdata, flags);
                     stack.push_back(fSuccess ? vchTrue : vchFalse);
                     // if (!fSuccess)
                     //     return set_error(serror, SCRIPT_ERR_CHECKSIGVERIFY);
@@ -794,44 +843,79 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                 {
                     // ([sig ...] num_of_signatures [pubkey ...] num_of_pubkeys -- bool)
 
+                    LogPrintf("Start");
+                    
                     int i = 1;
                     if ((int)stack.size() < i)
                         return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
 
+                    LogPrintf("Start2");
+
                     int nKeysCount = CScriptNum(stacktop(-i), fRequireMinimal).getint();
                     if (nKeysCount < 0 || nKeysCount > MAX_PUBKEYS_PER_MULTISIG)
                         return set_error(serror, SCRIPT_ERR_PUBKEY_COUNT);
+                    LogPrintf("Start3");
+
                     nOpCount += nKeysCount;
                     if (nOpCount > MAX_OPS_PER_SCRIPT)
                         return set_error(serror, SCRIPT_ERR_OP_COUNT);
-                    int ikey = ++i;
+                    i++;
+                    LogPrintf("Start4");
                     // ikey2 is the position of last non-signature item in the stack. Top stack item = 1.
                     // With SCRIPT_VERIFY_NULLFAIL, this is used for cleanup if operation fails.
-                    int ikey2 = nKeysCount + 2;
                     i += nKeysCount;
                     if ((int)stack.size() < i)
                         return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+                    LogPrintf("Start5");
 
                     int nSigsCount = CScriptNum(stacktop(-i), fRequireMinimal).getint();
                     if (nSigsCount < 0 || nSigsCount > nKeysCount)
                         return set_error(serror, SCRIPT_ERR_SIG_COUNT);
-                    int isig = ++i;
-                    i += nSigsCount;
-                    if ((int)stack.size() < i - 1)
-                        return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+
+                    LogPrintf("Start6");
 
                     bool fSuccess = true;
                     CScript scriptCode(pbegincodehash, pend);
 
+                    // keys amount
+                    popstack(stack);
+
+                    std::vector<valtype> keys(nKeysCount);
+                    for (int j = nKeysCount - 1; j >= 0; j--)
+                    {
+                        keys[j] = stacktop(-1);
+                        popstack(stack);
+                    }
+
+                    // signatures amount
+                    popstack(stack);
+
+                    LogPrintf("Start7");
+
+                    std::vector<std::vector<unsigned char>> sigs(nSigsCount);
+                    for (int j = nSigsCount - 1; j >= 0; j--)
+                    {
+                        if (!shrincs_sign_from_stack(stack, fRequireMinimal, serror, sigs[j]))
+                        {
+                            return false;
+                        }
+                    }
+
+                    LogPrintf("Star8");
+
+
+                    int ikey = 0;
+                    int isig = 0;
+
                     while (fSuccess && nSigsCount > 0)
                     {
-                        valtype& sig    = stacktop(-isig);
-                        valtype& pubKey = stacktop(-ikey);
+                        valtype& pubKey = keys[ikey];
 
-                        // Check signature
-                        bool fOk = checker.CheckSHRINCSSignature(sig, pubKey, scriptCode, sigversion, execdata, flags);
+                        bool fOk = checker.CheckSHRINCSSignature(sigs[isig], pubKey, scriptCode, sigversion, execdata, flags);
+
 
                         if (fOk) {
+                            LogPrintf("Correct");
                             isig++;
                             nSigsCount--;
                         }
@@ -843,16 +927,6 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                         // without checking any further signatures.
                         if (nSigsCount > nKeysCount)
                             fSuccess = false;
-                    }
-
-                    // Clean up stack of actual arguments
-                    while (i-- > 1) {
-                        // If the operation failed, we require that all signatures must be empty vector
-                        if (!fSuccess && (flags & SCRIPT_VERIFY_NULLFAIL) && !ikey2 && stacktop(-1).size())
-                            return set_error(serror, SCRIPT_ERR_SIG_NULLFAIL);
-                        if (ikey2 > 0)
-                            ikey2--;
-                        popstack(stack);
                     }
 
                     stack.push_back(fSuccess ? vchTrue : vchFalse);

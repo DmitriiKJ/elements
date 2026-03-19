@@ -1917,7 +1917,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
     CScript scriptCode;
     scriptCode << full_pubkey << OP_SHRINCS;
 
-    unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK;
+    unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA;
 
     {
         // SIGHASH_ALL
@@ -1930,7 +1930,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
 
         {
             CScriptWitness witness;
-            witness.stack.push_back(sig);
+            SHRINCS::shrincs_sig_to_witness(witness, sig, true);
             witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
             txTo.witness.vtxinwit[0].scriptWitness = witness;
 
@@ -1955,7 +1955,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
 
         {
             CScriptWitness witness;
-            witness.stack.push_back(sig);
+            SHRINCS::shrincs_sig_to_witness(witness, sig, true);
             witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
             txTo.witness.vtxinwit[0].scriptWitness = witness;
 
@@ -1986,7 +1986,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
         delete[] sig_ptr;
 
         CScriptWitness witness;
-        witness.stack.push_back(sig);
+        SHRINCS::shrincs_sig_to_witness(witness, sig, true);
         witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
         txTo.witness.vtxinwit[0].scriptWitness = witness;
 
@@ -2015,7 +2015,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
         delete[] sig_ptr;
 
         CScriptWitness witness;
-        witness.stack.push_back(sig);
+        SHRINCS::shrincs_sig_to_witness(witness, sig, true);
         witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
         txTo.witness.vtxinwit[0].scriptWitness = witness;
 
@@ -2068,7 +2068,7 @@ BOOST_AUTO_TEST_CASE(multishrincs_opcode_test)
     CScript scriptCode;
     scriptCode << OP_2 << full_pubkey1 << full_pubkey2 << full_pubkey3 << OP_3 << OP_MULTISHRINCS;
 
-    unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK;
+    unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA;
 
     uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ALL, 1000, SigVersion::WITNESS_V0, flags, nullptr);
 
@@ -2083,8 +2083,9 @@ BOOST_AUTO_TEST_CASE(multishrincs_opcode_test)
     delete[] sig_ptr_2;
 
     CScriptWitness witness;
-    witness.stack.push_back(sig1);
-    witness.stack.push_back(sig2);
+
+    SHRINCS::shrincs_sig_to_witness(witness, sig1, true);
+    SHRINCS::shrincs_sig_to_witness(witness, sig2, true);
     witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
     txTo.witness.vtxinwit[0].scriptWitness = witness;
 

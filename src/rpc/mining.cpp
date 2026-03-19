@@ -44,6 +44,7 @@
 #include <script/generic.hpp> // combineblocksigs
 #include <blockencodings.h> // getcompactsketch
 #include <policy/settings.h> // IsStandardTx
+#include <crypto/shrincs/shrincs.h>
 
 #include <memory>
 #include <stdint.h>
@@ -1514,10 +1515,14 @@ static RPCHelpMan combineblocksigs()
         }
         if (sigs.size() > 0) {
             block.m_signblock_witness.stack.clear();
+            
             for (int i = 0; i < sigs.size(); i++)
             {
                 UniValue sig_obj = sigs[i];
-                block.m_signblock_witness.stack.push_back(ParseHex(sig_obj["sig"].get_str()));
+                const std::string& sig_str = sig_obj["sig"].get_str();
+                std::vector<unsigned char> sig_bytes = ParseHex(sig_str);
+
+               SHRINCS::shrincs_sig_to_witness(block.m_signblock_witness, sig_bytes, false);
             }
 
             std::vector<unsigned char> witness_bytes(ParseHex(request.params[2].get_str()));

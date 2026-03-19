@@ -7,7 +7,52 @@ namespace SHRINCS {
 
     State::State() {}
 
-    void generate_random_bytes(unsigned char* buffer, size_t length) {
+    void shrincs_sig_to_witness(CScriptWitness& witness, std::vector<unsigned char> sig, bool sighash_type_ext)
+    {
+        if (sig.size() == SL_SIZE + (sighash_type_ext ? 1 : 0))
+        {
+            std::size_t idx = 0;
+            for (int i = 0; i < 6; i++)
+            {
+                int idx_to = std::min(sig.size(), idx + 520);
+                witness.stack.push_back(std::vector<unsigned char>(
+                    sig.begin() + idx, 
+                    sig.begin() + idx_to
+                ));
+                idx = idx_to;
+            }
+
+            witness.stack.push_back(std::vector<unsigned char>());
+        }
+        else {
+            witness.stack.push_back(std::vector<unsigned char>(
+                sig.begin(), 
+                sig.begin() + N
+            ));
+
+            std::size_t offset = N;
+            witness.stack.push_back(std::vector<unsigned char>(
+                sig.begin() + offset, 
+                sig.begin() + offset + WOTS_SIGN_LEN
+            ));
+            offset += WOTS_SIGN_LEN;
+
+            int parts = (sig.size() - offset) / N;
+            for (int i = 0; i < parts; i++)
+            {
+                witness.stack.push_back(std::vector<unsigned char>(
+                    sig.begin() + offset, 
+                    sig.begin() + offset + N + ((i == parts - 1 && sighash_type_ext) ? 1 : 0)
+                ));
+                offset += N;
+            }
+
+            witness.stack.push_back(CScriptNum(parts).getvch());
+        }
+    }
+
+    void generate_random_bytes(unsigned char* buffer, size_t length) 
+    {
         if (RAND_bytes(buffer, length) != 1) {
             throw std::runtime_error("OpenSSL failed to generate random bytes");
         }
