@@ -308,6 +308,11 @@ public:
         return false;
     }
 
+    virtual bool isBlockChecker() const
+    {
+        return false;
+    }
+
     virtual bool CheckLockTime(const CScriptNum& nLockTime) const
     {
          return false;

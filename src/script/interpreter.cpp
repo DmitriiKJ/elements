@@ -577,7 +577,7 @@ const CHashWriter HASHER_TAPLEAF_ELEMENTS = TaggedHash("TapLeaf/elements");
 const CHashWriter HASHER_TAPBRANCH_ELEMENTS = TaggedHash("TapBranch/elements");
 const CHashWriter HASHER_TAPSIGHASH_ELEMENTS = TaggedHash("TapSighash/elements");
 
-bool shrincs_sign_from_stack(std::vector<std::vector<unsigned char> >& stack, bool fRequireMinimal, ScriptError* serror, std::vector<unsigned char>& sig_out) 
+bool shrincs_sign_from_stack(std::vector<std::vector<unsigned char> >& stack, bool fRequireMinimal, ScriptError* serror, std::vector<unsigned char>& sig_out, bool sighash_type_ext) 
 {
     if (stack.size() < 1)
         return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
@@ -587,35 +587,63 @@ bool shrincs_sign_from_stack(std::vector<std::vector<unsigned char> >& stack, bo
 
     if (q == 0)
     {
-        if (stack.size() < 6)
+        int elems = sighash_type_ext ? 10 : 9;
+        // Stateless signature
+        // (sf fors_R fors_sigs*5 xmss_layer*2 sighashtype)
+        if (stack.size() < elems)
             return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
-        // Stateless signature divided into 6 parts (520 520 520 520 520 256)
-        for (int i = 0; i < 6; i++)
-        {
+        
+        std::vector<valtype> reversed_parts;
+        size_t total_size = 0;
+        for (int i = 0; i < elems; i++) {
             valtype sign_part = stacktop(-1);
             popstack(stack);
+            
+            total_size += sign_part.size();
+            reversed_parts.push_back(sign_part); 
+        }
 
-            sig_out.insert(sig_out.begin(), sign_part.begin(), sign_part.end());
+        sig_out.resize(total_size);
+
+        size_t current_offset = total_size;
+        for (const auto& part : reversed_parts) {
+            current_offset -= part.size();
+
+            std::copy(part.begin(), part.end(), sig_out.begin() + current_offset);
         }
     }
     else
     {
-        // Stateless signature
-        // (sl wots merkle_path_element*q)
+        // Stateful signature
+        // (sl wots merkle_path_element*q sighashtype)
         if (q > HSF + 1)
             return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
         else if (q == HSF + 1)
             q = HSF;
 
-        if (stack.size() < (q + 2))
+        int elems = q + (sighash_type_ext ? 3 : 2);
+
+        if (stack.size() < elems)
             return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
 
-        for (int i = 0; i < q + 2; i++)
-        {
+        std::vector<valtype> reversed_parts;
+        size_t total_size = 0;
+
+        for (int i = 0; i < elems; i++) {
             valtype sign_part = stacktop(-1);
             popstack(stack);
+            
+            total_size += sign_part.size();
+            reversed_parts.push_back(sign_part); 
+        }
 
-            sig_out.insert(sig_out.begin(), sign_part.begin(), sign_part.end());
+        sig_out.resize(total_size);
+
+        size_t current_offset = total_size;
+        for (const auto& part : reversed_parts) {
+            current_offset -= part.size();
+
+            std::copy(part.begin(), part.end(), sig_out.begin() + current_offset);
         }
     }
 
@@ -824,7 +852,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                     popstack(stack);
                     
                     std::vector<unsigned char> sign;
-                    if (!shrincs_sign_from_stack(stack, fRequireMinimal, serror, sign))
+                    if (!shrincs_sign_from_stack(stack, fRequireMinimal, serror, sign, !checker.isBlockChecker()))
                     {
                         return false;
                     }
@@ -883,7 +911,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                     std::vector<std::vector<unsigned char>> sigs(nSigsCount);
                     for (int j = nSigsCount - 1; j >= 0; j--)
                     {
-                        if (!shrincs_sign_from_stack(stack, fRequireMinimal, serror, sigs[j]))
+                        if (!shrincs_sign_from_stack(stack, fRequireMinimal, serror, sigs[j], !checker.isBlockChecker()))
                         {
                             return false;
                         }

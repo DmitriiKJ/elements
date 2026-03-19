@@ -2077,9 +2077,10 @@ BOOST_AUTO_TEST_CASE(multishrincs_opcode_test)
     sig1.push_back(SIGHASH_ALL);
     delete[] sig_ptr_1;
 
+    sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ANYONECANPAY, 1000, SigVersion::WITNESS_V0, flags, nullptr);
     auto sig_ptr_2 = SHRINCS::shrincs_sign_stateless(sighash.data(), sk2);
     std::vector<unsigned char> sig2 = std::vector<unsigned char>(sig_ptr_2, sig_ptr_2 + SL_SIZE);
-    sig2.push_back(SIGHASH_ALL);
+    sig2.push_back(SIGHASH_ANYONECANPAY);
     delete[] sig_ptr_2;
 
     CScriptWitness witness;

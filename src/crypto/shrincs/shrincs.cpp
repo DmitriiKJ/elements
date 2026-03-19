@@ -11,17 +11,42 @@ namespace SHRINCS {
     {
         if (sig.size() == SL_SIZE + (sighash_type_ext ? 1 : 0))
         {
-            std::size_t idx = 0;
-            for (int i = 0; i < 6; i++)
-            {
-                int idx_to = std::min(sig.size(), idx + 520);
-                witness.stack.push_back(std::vector<unsigned char>(
-                    sig.begin() + idx, 
-                    sig.begin() + idx_to
-                ));
-                idx = idx_to;
-            }
+            witness.stack.push_back(std::vector<unsigned char>(
+                sig.begin(), 
+                sig.begin() + N
+            ));
 
+            std::size_t offset = N;
+            witness.stack.push_back(std::vector<unsigned char>(
+                sig.begin() + offset, 
+                sig.begin() + offset + R_LEN
+            ));
+            offset += R_LEN;
+
+            uint32_t fors_part_size = (FORS_SIGN_LEN - R_LEN) / (K - 1);
+
+            for (int i = 0; i < (K - 1); i++)
+            {
+                witness.stack.push_back(std::vector<unsigned char>(
+                    sig.begin() + offset, 
+                    sig.begin() + offset + fors_part_size
+                ));
+                offset += fors_part_size;
+            }
+            
+            for (int i = 0; i < D; i++)
+            {
+                witness.stack.push_back(std::vector<unsigned char>(
+                    sig.begin() + offset, 
+                    sig.begin() + offset + XMSS_SIGN_LEN
+                ));
+                offset += XMSS_SIGN_LEN;
+            }
+            
+            if (sighash_type_ext) 
+                witness.stack.push_back(std::vector<unsigned char>(1, sig.back()));
+                
+            // q = 0
             witness.stack.push_back(std::vector<unsigned char>());
         }
         else {
@@ -42,10 +67,12 @@ namespace SHRINCS {
             {
                 witness.stack.push_back(std::vector<unsigned char>(
                     sig.begin() + offset, 
-                    sig.begin() + offset + N + ((i == parts - 1 && sighash_type_ext) ? 1 : 0)
+                    sig.begin() + offset + N
                 ));
                 offset += N;
             }
+
+            witness.stack.push_back(std::vector<unsigned char>(1, sig.back()));
 
             witness.stack.push_back(CScriptNum(parts).getvch());
         }
