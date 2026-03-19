@@ -4,7 +4,6 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <script/interpreter.h>
-#include <logging.h>
 
 #include <consensus/consensus.h>
 #include <crypto/ripemd160.h>
@@ -842,37 +841,28 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                 case OP_MULTISHRINCS:
                 {
                     // ([sig ...] num_of_signatures [pubkey ...] num_of_pubkeys -- bool)
-
-                    LogPrintf("Start");
                     
                     int i = 1;
                     if ((int)stack.size() < i)
                         return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
 
-                    LogPrintf("Start2");
-
                     int nKeysCount = CScriptNum(stacktop(-i), fRequireMinimal).getint();
                     if (nKeysCount < 0 || nKeysCount > MAX_PUBKEYS_PER_MULTISIG)
                         return set_error(serror, SCRIPT_ERR_PUBKEY_COUNT);
-                    LogPrintf("Start3");
 
                     nOpCount += nKeysCount;
                     if (nOpCount > MAX_OPS_PER_SCRIPT)
                         return set_error(serror, SCRIPT_ERR_OP_COUNT);
                     i++;
-                    LogPrintf("Start4");
                     // ikey2 is the position of last non-signature item in the stack. Top stack item = 1.
                     // With SCRIPT_VERIFY_NULLFAIL, this is used for cleanup if operation fails.
                     i += nKeysCount;
                     if ((int)stack.size() < i)
                         return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
-                    LogPrintf("Start5");
 
                     int nSigsCount = CScriptNum(stacktop(-i), fRequireMinimal).getint();
                     if (nSigsCount < 0 || nSigsCount > nKeysCount)
                         return set_error(serror, SCRIPT_ERR_SIG_COUNT);
-
-                    LogPrintf("Start6");
 
                     bool fSuccess = true;
                     CScript scriptCode(pbegincodehash, pend);
@@ -890,8 +880,6 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                     // signatures amount
                     popstack(stack);
 
-                    LogPrintf("Start7");
-
                     std::vector<std::vector<unsigned char>> sigs(nSigsCount);
                     for (int j = nSigsCount - 1; j >= 0; j--)
                     {
@@ -900,9 +888,6 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                             return false;
                         }
                     }
-
-                    LogPrintf("Star8");
-
 
                     int ikey = 0;
                     int isig = 0;
@@ -915,7 +900,6 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
 
 
                         if (fOk) {
-                            LogPrintf("Correct");
                             isig++;
                             nSigsCount--;
                         }
