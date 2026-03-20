@@ -14,8 +14,8 @@ Unlike ECDSA and Schnorr signatures which are small (less than 520 bytes) and ca
 | :---: | :--- | :--- | :--- | 
 | `[-11]` | `sf part` | 16 bytes |  |
 | `[-10]` | `fors_R` | 32 bytes |  |
-| `[-9..-5]` | `fors_part` (x5) | 368 bytes each |  |
-| `[-4..-3]` | `xmss_layer` (x2) | 484 bytes each |  |
+| `[-9..-5]` | `fors_part` (x5) | 368 bytes per part |  |
+| `[-4..-3]` | `xmss_layer` (x2) | 484 bytes per layer |  |
 | `[-2]` | `sighash type` (optional) | 1 byte |  |
 | `[-1]` | `q` | 0 byte | **Type Flag:** `MINIMALDATA` empty array indicating a Stateless signature (`q=0`) |
 
@@ -34,7 +34,7 @@ State (q) from 1 to 159 means leaf in a uxmss tree, so for q = 159 merkle path c
 | :---: | :--- | :--- |
 | `[-(4 + mpl)]` | `sl part` | 16 bytes |
 | `[-(3 + mpl)]` | `wots` | 292 bytes |
-| `[-(2 + mpl)..-3]` | `merkle path` | 16 bytes each leaf |
+| `[-(2 + mpl)..-3]` | `merkle path` | 16 bytes per leaf |
 | `[-2]` | `sighash type` | 1 byte |
 | `[-1]` | `q` | 1 byte |
 
