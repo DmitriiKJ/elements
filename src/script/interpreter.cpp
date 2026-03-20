@@ -589,7 +589,7 @@ bool shrincs_sign_from_stack(std::vector<std::vector<unsigned char> >& stack, bo
     {
         int elems = sighash_type_ext ? 10 : 9;
         // Stateless signature
-        // (sf fors_R fors_sigs*5 xmss_layer*2 sighashtype)
+        // (sf fors_R fors_sigs*5 xmss_layer*2 [sighashtype])
         if (stack.size() < elems)
             return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
         
