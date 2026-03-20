@@ -28,13 +28,13 @@ So, in a script, the required push order is as follows: `<sf> <R> <fp1> <fp2> <f
 
 **Stateful signature stack layout:**
 
-State (q) from 1 to 159 means leaf in a uxmss tree, so for q = 159 merkle path consists of 158 leaves, otherwise q represents the number of Merkle path leaves (mpla).
+State (q) from 1 to 159 means leaf in a uxmss tree, so for q = 159 merkle path consists of 158 leaves, otherwise q represents the number of Merkle path leaves (mpl).
 
 | Position | Element | Size |
 | :---: | :--- | :--- |
-| `[-(4 + mpla)]` | `sl part` | 16 bytes |
-| `[-(3 + mpla)]` | `wots` | 292 bytes |
-| `[-(2 + mpla)..-3]` | `merkle path` | 16 bytes each leaf |
+| `[-(4 + mpl)]` | `sl part` | 16 bytes |
+| `[-(3 + mpl)]` | `wots` | 292 bytes |
+| `[-(2 + mpl)..-3]` | `merkle path` | 16 bytes each leaf |
 | `[-2]` | `sighash type` | 1 byte |
 | `[-1]` | `q` | 1 byte |
 
