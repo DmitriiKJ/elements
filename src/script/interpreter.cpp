@@ -899,9 +899,10 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                     popstack(stack);
 
                     std::vector<valtype> keys(nKeysCount);
-                    for (int j = nKeysCount - 1; j >= 0; j--)
+                    for (int j = 0; j < nKeysCount; j++)
                     {
                         keys[j] = stacktop(-1);
+                        assert(keys[j].size() == 32);
                         popstack(stack);
                     }
 
@@ -909,7 +910,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                     popstack(stack);
 
                     std::vector<std::vector<unsigned char>> sigs(nSigsCount);
-                    for (int j = nSigsCount - 1; j >= 0; j--)
+                    for (int j = 0; j < nSigsCount; j++)
                     {
                         if (!shrincs_sign_from_stack(stack, fRequireMinimal, serror, sigs[j], !checker.isBlockChecker()))
                         {
@@ -922,9 +923,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
 
                     while (fSuccess && nSigsCount > 0)
                     {
-                        valtype& pubKey = keys[ikey];
-
-                        bool fOk = checker.CheckSHRINCSSignature(sigs[isig], pubKey, scriptCode, sigversion, execdata, flags);
+                        bool fOk = checker.CheckSHRINCSSignature(sigs[isig], keys[ikey], scriptCode, sigversion, execdata, flags);
 
 
                         if (fOk) {
