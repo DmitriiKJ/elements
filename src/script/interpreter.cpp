@@ -920,11 +920,15 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
 
                     int ikey = 0;
                     int isig = 0;
+                    bool empty_sigs = true;
 
                     while (fSuccess && nSigsCount > 0)
                     {
                         bool fOk = checker.CheckSHRINCSSignature(sigs[isig], keys[ikey], scriptCode, sigversion, execdata, flags);
 
+                        if (sigs[isig].size()) {
+                            empty_sigs = false;
+                        }
 
                         if (fOk) {
                             isig++;
@@ -939,6 +943,9 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                         if (nSigsCount > nKeysCount)
                             fSuccess = false;
                     }
+
+                    if (!fSuccess && (flags & SCRIPT_VERIFY_NULLFAIL) && empty_sigs)
+                        return set_error(serror, SCRIPT_ERR_SIG_NULLFAIL);
 
                     stack.push_back(fSuccess ? vchTrue : vchFalse);
                 }
@@ -3128,7 +3135,7 @@ bool GenericTransactionSignatureChecker<T>::VerifySHRINCSSignature(const std::ve
     pk.seed = std::vector<unsigned char>(pubkey.begin(), pubkey.begin() + N);
     pk.root = std::vector<unsigned char>(pubkey.begin() + N, pubkey.end());
 
-    return SHRINCS::shrincs_verify(sighash.data(), sig.data(), sig.size() - 1, pk);
+    return SHRINCS::shrincs_verify(std::vector<unsigned char>(sighash.begin(), sighash.end()), sig.data(), sig.size() - 1, pk);
 }
 
 template <class T>

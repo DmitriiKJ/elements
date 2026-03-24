@@ -51,7 +51,7 @@ public:
         SHRINCS::PublicKey pk;
         pk.seed = std::vector<unsigned char>(pubkey.begin(), pubkey.begin() + N);
         pk.root = std::vector<unsigned char>(pubkey.begin() + N, pubkey.end());
-        return SHRINCS::shrincs_verify(hash.data(), sig.data(), sig.size(), pk);
+        return SHRINCS::shrincs_verify(std::vector<unsigned char>(hash.begin(), hash.end()), sig.data(), sig.size(), pk);
     }
 
     virtual bool isBlockChecker() const override

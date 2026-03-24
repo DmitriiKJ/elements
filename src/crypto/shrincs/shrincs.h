@@ -1,8 +1,9 @@
 #ifndef SHRINCS_H
 #define SHRINCS_H
 
-#include <openssl/rand.h>
+#include <random.h>
 #include <vector>
+#include <crypto/sha256.h>
 #include <script/script.h>
 #include "uxmss.h"
 #include "xmss.h"
@@ -39,17 +40,17 @@ namespace SHRINCS {
             State();
     };
 
+    void shrincs_sig_to_witness(CScriptWitness& witness, std::vector<unsigned char> sig, bool sighash_type_ext);
     void generate_random_bytes(unsigned char* buffer, size_t length);
     void parse_idx(const unsigned char* digest, uint32_t* idx_tree, uint32_t* idx_leaf);
-    void shrincs_sig_to_witness(CScriptWitness& witness, std::vector<unsigned char> sig, bool sighash_type_ext);
 
     void shrincs_key_gen(PublicKey& out_pk, SecretKey& out_sk, State& out_state);
     void shrincs_restore(const unsigned char* seed, PublicKey& out_pk, SecretKey& out_sk, State& out_state);
-    unsigned char* shrincs_sign_stateful(const unsigned char* message, SecretKey& sk, State& state);
-    unsigned char* shrincs_sign_stateless(const unsigned char* message, SecretKey& sk);
-    bool shrincs_verify_stateful(const unsigned char* message, const unsigned char* sig, uint32_t sig_len, PublicKey& pk);
-    bool shrincs_verify_stateless(const unsigned char* message, const unsigned char* sig, PublicKey& pk);
-    bool shrincs_verify(const unsigned char* message, const unsigned char* sig, uint32_t sig_len, PublicKey& pk);
+    unsigned char* shrincs_sign_stateful(const std::vector<unsigned char> message, SecretKey& sk, State& state);
+    unsigned char* shrincs_sign_stateless(const std::vector<unsigned char> message, SecretKey& sk);
+    bool shrincs_verify_stateful(const std::vector<unsigned char> message, const unsigned char* sig, uint32_t sig_len, PublicKey& pk);
+    bool shrincs_verify_stateless(const std::vector<unsigned char> message, const unsigned char* sig, PublicKey& pk);
+    bool shrincs_verify(const std::vector<unsigned char> message, const unsigned char* sig, uint32_t sig_len, PublicKey& pk);
 }
 
 #endif

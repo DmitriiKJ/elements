@@ -223,10 +223,10 @@ static int secp256k1_generator_generate_internal(secp256k1_generator* gen, const
     }
 
     {
-        sha256_context sha256_ctx = sha256_init(sha256_buf.s);
-        sha256_uchars(&sha256_ctx, prefix1, 16);
-        sha256_uchars(&sha256_ctx, key32, 32);
-        sha256_finalize(&sha256_ctx);
+        sha256_context CSHA256 = sha256_init(sha256_buf.s);
+        sha256_uchars(&CSHA256, prefix1, 16);
+        sha256_uchars(&CSHA256, key32, 32);
+        sha256_finalize(&CSHA256);
         sha256_fromMidstate(b32, sha256_buf.s);
     }
     ret &= secp256k1_fe_set_b32(&t, b32);
@@ -238,10 +238,10 @@ static int secp256k1_generator_generate_internal(secp256k1_generator* gen, const
     }
 
     {
-        sha256_context sha256_ctx = sha256_init(sha256_buf.s);
-        sha256_uchars(&sha256_ctx, prefix2, 16);
-        sha256_uchars(&sha256_ctx, key32, 32);
-        sha256_finalize(&sha256_ctx);
+        sha256_context CSHA256 = sha256_init(sha256_buf.s);
+        sha256_uchars(&CSHA256, prefix2, 16);
+        sha256_uchars(&CSHA256, key32, 32);
+        sha256_finalize(&CSHA256);
         sha256_fromMidstate(b32, sha256_buf.s);
     }
     ret &= secp256k1_fe_set_b32(&t, b32);

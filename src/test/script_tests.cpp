@@ -1923,7 +1923,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
         // SIGHASH_ALL
         uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ALL, 1000, SigVersion::WITNESS_V0, flags, nullptr);
 
-        auto sig_ptr = SHRINCS::shrincs_sign_stateful(sighash.data(), sk, state);
+        auto sig_ptr = SHRINCS::shrincs_sign_stateful(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk, state);
         std::vector<unsigned char> sig = std::vector<unsigned char>(sig_ptr, sig_ptr + (N + WOTS_SIGN_LEN + state.q * N));
         sig.push_back(SIGHASH_ALL);
         delete[] sig_ptr;
@@ -1980,7 +1980,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
         uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ANYONECANPAY, 1000, SigVersion::WITNESS_V0, flags, nullptr);
 
         state.q = 10;
-        auto sig_ptr = SHRINCS::shrincs_sign_stateful(sighash.data(), sk, state);
+        auto sig_ptr = SHRINCS::shrincs_sign_stateful(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk, state);
         std::vector<unsigned char> sig = std::vector<unsigned char>(sig_ptr, sig_ptr + (N + WOTS_SIGN_LEN + state.q * N));
         sig.push_back(SIGHASH_ANYONECANPAY);
         delete[] sig_ptr;
@@ -2009,7 +2009,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
         // SIGHASH_NONE
         uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_NONE, 1000, SigVersion::WITNESS_V0, flags, nullptr);
 
-        auto sig_ptr = SHRINCS::shrincs_sign_stateless(sighash.data(), sk);
+        auto sig_ptr = SHRINCS::shrincs_sign_stateless(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk);
         std::vector<unsigned char> sig = std::vector<unsigned char>(sig_ptr, sig_ptr + SL_SIZE);
         sig.push_back(SIGHASH_NONE);
         delete[] sig_ptr;
@@ -2072,13 +2072,13 @@ BOOST_AUTO_TEST_CASE(multishrincs_opcode_test)
 
     uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ALL, 1000, SigVersion::WITNESS_V0, flags, nullptr);
 
-    auto sig_ptr_1 = SHRINCS::shrincs_sign_stateful(sighash.data(), sk1, state);
+    auto sig_ptr_1 = SHRINCS::shrincs_sign_stateful(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk1, state);
     std::vector<unsigned char> sig1 = std::vector<unsigned char>(sig_ptr_1, sig_ptr_1 + (N + WOTS_SIGN_LEN + state.q * N));
     sig1.push_back(SIGHASH_ALL);
     delete[] sig_ptr_1;
 
     sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ANYONECANPAY, 1000, SigVersion::WITNESS_V0, flags, nullptr);
-    auto sig_ptr_2 = SHRINCS::shrincs_sign_stateless(sighash.data(), sk2);
+    auto sig_ptr_2 = SHRINCS::shrincs_sign_stateless(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk2);
     std::vector<unsigned char> sig2 = std::vector<unsigned char>(sig_ptr_2, sig_ptr_2 + SL_SIZE);
     sig2.push_back(SIGHASH_ANYONECANPAY);
     delete[] sig_ptr_2;

@@ -2,7 +2,7 @@
 
 namespace UXMSS 
 {
-    unsigned char* uxmss_treehash(const unsigned char* sk_seed, SHA256_CTX hash_ctx, unsigned char* adrs, uint32_t level)
+    unsigned char* uxmss_treehash(const unsigned char* sk_seed, CSHA256 hash_ctx, unsigned char* adrs, uint32_t level)
     {
         auto left = wots_pk_gen(sk_seed, hash_ctx, adrs, level + 1, true);
 
@@ -33,14 +33,14 @@ namespace UXMSS
         return res;
     }
 
-    unsigned char* uxmss_root(const unsigned char* sk_seed, SHA256_CTX hash_ctx, unsigned char* adrs)
+    unsigned char* uxmss_root(const unsigned char* sk_seed, CSHA256 hash_ctx, unsigned char* adrs)
     {
         setLayerAddress(adrs, 0);
         setTreeAddress(adrs, 0, 0);
         return uxmss_treehash(sk_seed, hash_ctx, adrs, 0);
     }
 
-    unsigned char* uxmss_auth_path(const unsigned char* sk_seed, SHA256_CTX hash_ctx, unsigned char* adrs, uint32_t q)
+    unsigned char* uxmss_auth_path(const unsigned char* sk_seed, CSHA256 hash_ctx, unsigned char* adrs, uint32_t q)
     {
         unsigned char* auth = new unsigned char[(q > HSF ? q - 1 : q) * N];
 
@@ -81,11 +81,11 @@ namespace UXMSS
         return auth;
     }
 
-    unsigned char* uxmss_pk_from_sig(const unsigned char* wots_sig, const unsigned char* auth, const unsigned char* message, const unsigned char* pk_seed, const unsigned char* pk_root, SHA256_CTX hash_ctx, unsigned char* adrs, uint32_t q)
+    unsigned char* uxmss_pk_from_sig(const unsigned char* wots_sig, const unsigned char* auth, const unsigned char* message, uint32_t message_len, const unsigned char* pk_seed, const unsigned char* pk_root, CSHA256 hash_ctx, unsigned char* adrs, uint32_t q)
     {
         setLayerAddress(adrs, 0);
         setTreeAddress(adrs, 0, 0);
-        auto node = wots_pk_from_sig(wots_sig, message, 32, pk_seed, pk_root, hash_ctx, adrs, q, true, false);
+        auto node = wots_pk_from_sig(wots_sig, message, message_len, pk_seed, pk_root, hash_ctx, adrs, q, true, false);
 
         setTypeAndClear(adrs, SF_TREE);
         if (q <= HSF) 
@@ -129,11 +129,11 @@ namespace UXMSS
         return node;
     }
 
-    unsigned char* uxmss_sign(const unsigned char* message, const unsigned char* sk_seed, const unsigned char* sk_prf, const unsigned char* pk_seed, const unsigned char* pk_root, SHA256_CTX hash_ctx, unsigned char* adrs, uint32_t q)
+    unsigned char* uxmss_sign(const unsigned char* message, uint32_t message_len, const unsigned char* sk_seed, const unsigned char* sk_prf, const unsigned char* pk_seed, const unsigned char* pk_root, CSHA256 hash_ctx, unsigned char* adrs, uint32_t q)
     {
         setLayerAddress(adrs, 0);
         setTreeAddress(adrs, 0, 0);
-        auto wots_sig = wots_sign(message, 32, sk_seed, sk_prf, pk_seed, pk_root, hash_ctx, adrs, q, true, false);
+        auto wots_sig = wots_sign(message, message_len, sk_seed, sk_prf, pk_seed, pk_root, hash_ctx, adrs, q, true, false);
         auto auth = uxmss_auth_path(sk_seed, hash_ctx, adrs, q);
 
         if (q > HSF)

@@ -174,7 +174,8 @@ RPCHelpMan signblock()
         sk.prf = std::vector<unsigned char>(full_key.begin() + 64, full_key.begin() + 80);
         sk.seed = std::vector<unsigned char>(full_key.begin() + 80, full_key.begin() + 96);
 
-        unsigned char* raw_sig = SHRINCS::shrincs_sign_stateless(block.GetHash().begin(), sk);
+        uint256 sighash = block.GetHash();
+        unsigned char* raw_sig = SHRINCS::shrincs_sign_stateless(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk);
 
         std::vector<unsigned char> pq_sig(raw_sig, raw_sig + SL_SIZE);
         delete[] raw_sig;
