@@ -49,7 +49,7 @@ Behaves similarly to the legacy `OP_CHECKSIG`. The script structure is:
 ```
 
 **OP_SHRINCSADD**
-ehaves similarly to the `OP_CHECKSIGADD`. This example represent 2-of-3 threshold signature (where the third signer did not provide a signature, hence the `OP_0`):
+Behaves similarly to the `OP_CHECKSIGADD`. This example represent 2-of-3 threshold signature (where the third signer did not provide a signature, hence the `OP_0`):
 ```text
 <OP_0> <sig2_components> <sig1_components> <pubkey1> OP_SHRINCS <pubkey2> OP_SHRINCSADD <pubkey3> OP_SHRINCSADD OP_2 OP_NUMEQUAL
 ```
