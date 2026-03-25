@@ -37,12 +37,15 @@ def make_signblockscript(num_nodes, required_signers, keys):
 
 def make_signblockscript_shrincs(num_nodes, required_signers, keys):
     assert num_nodes >= required_signers
-    script = "{}".format(50 + required_signers)
-    for i in range(num_nodes):
+    script = "20"
+    script += keys[0]
+    script += "b3"
+    for i in range(1, num_nodes):
         script += "20"
         script += keys[i]
-    script += "{}".format(50 + num_nodes) # num keys
-    script += "b4" # OP_MULTISHRINCS
+        script += "b4"
+    script += "{}".format(50 + required_signers)
+    script += "9c" # OP_NUMEQUAL
     return script
 
 class BlockSignTest(BitcoinTestFramework):
@@ -292,6 +295,12 @@ class BlockSignTest(BitcoinTestFramework):
             pq_sigs = []
             for j in range(self.required_signers):
                 pq_sigs += self.nodes[j].signblock(block_hex, signblockscript, True)
+
+            for j in range(self.num_keys - self.required_signers):
+                pq_sigs.append({
+                    "pubkey": keys[self.required_signers + j],
+                    "sig": ""
+                })
             
             pq_combined = self.nodes[0].combineblocksigs(block_hex, pq_sigs, signblockscript, True)
             assert(pq_combined["complete"])

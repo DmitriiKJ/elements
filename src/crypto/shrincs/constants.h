@@ -11,10 +11,11 @@ namespace Parameters
     inline constexpr uint32_t A     = 22;   // FORS tree height
     inline constexpr uint32_t K     = 6;    // Number of FORS+C trees
     inline constexpr uint32_t R_LEN = 32;   // Randomness length (bytes)
-    inline constexpr uint32_t W   = 256;    // Winternitz parameter
-    inline constexpr uint32_t L   = 16;     // WOTS+C chain count
-    inline constexpr uint32_t SWN = 2040;   // Target sum for WOTS+C
-    inline constexpr uint32_t HSF = 158;    // Max stateful tree height
+    inline constexpr uint32_t W     = 256;    // Winternitz parameter
+    inline constexpr uint32_t L     = 16;     // WOTS+C chain count
+    inline constexpr uint32_t SWN   = 2040;   // Target sum for WOTS+C
+    inline constexpr uint32_t HSF   = 158;    // Max stateful tree height
+    
     inline constexpr uint32_t H_PRIME       = HSL / D;
     inline constexpr uint32_t WOTS_SIGN_LEN = R_LEN + 4 + L * N;
     inline constexpr uint32_t XMSS_SIGN_LEN = WOTS_SIGN_LEN + H_PRIME * N;

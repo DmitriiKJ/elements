@@ -46,10 +46,15 @@ namespace SHRINCS {
             if (sighash_type_ext) 
                 witness.stack.push_back(std::vector<unsigned char>(1, sig.back()));
                 
-            // q = 0
+            // q = 0xff
+            witness.stack.push_back(CScriptNum(0xff).getvch());
+        }
+        else if (sig.size() == 0)
+        {
             witness.stack.push_back(std::vector<unsigned char>());
         }
-        else {
+        else 
+        {
             witness.stack.push_back(std::vector<unsigned char>(
                 sig.begin(), 
                 sig.begin() + N

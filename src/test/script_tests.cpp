@@ -1979,7 +1979,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
         // SIGHASH_ANYONECANPAY
         uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ANYONECANPAY, 1000, SigVersion::WITNESS_V0, flags, nullptr);
 
-        state.q = 10;
+        state.q = 25; // Test if a value that more then 16 (OP_16) can be handled correctly
         auto sig_ptr = SHRINCS::shrincs_sign_stateful(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk, state);
         std::vector<unsigned char> sig = std::vector<unsigned char>(sig_ptr, sig_ptr + (N + WOTS_SIGN_LEN + state.q * N));
         sig.push_back(SIGHASH_ANYONECANPAY);
@@ -2066,7 +2066,7 @@ BOOST_AUTO_TEST_CASE(multishrincs_opcode_test)
     full_pubkey2.insert(full_pubkey2.end(), pk2.root.begin(), pk2.root.end());
     
     CScript scriptCode;
-    scriptCode << OP_2 << full_pubkey1 << full_pubkey2 << full_pubkey3 << OP_3 << OP_MULTISHRINCS;
+    scriptCode << full_pubkey1 << OP_SHRINCS << full_pubkey2 << OP_SHRINCSADD << full_pubkey3 << OP_SHRINCSADD << OP_2 << OP_NUMEQUAL;
 
     unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA;
 
@@ -2085,8 +2085,9 @@ BOOST_AUTO_TEST_CASE(multishrincs_opcode_test)
 
     CScriptWitness witness;
 
-    SHRINCS::shrincs_sig_to_witness(witness, sig1, true);
+    SHRINCS::shrincs_sig_to_witness(witness, std::vector<unsigned char>(), true);
     SHRINCS::shrincs_sig_to_witness(witness, sig2, true);
+    SHRINCS::shrincs_sig_to_witness(witness, sig1, true);
     witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
     txTo.witness.vtxinwit[0].scriptWitness = witness;
 

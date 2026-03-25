@@ -1,6 +1,6 @@
 # SHRINCS Opcodes Specification
 
-This document describes how to use the OP_SHRINCS (0xb3) and the OP_MULTISHRINCS (0xb4) opcodes, which replace OP_NOP4 and OP_NOP5 respectively, and implement the [SHRINCS](https://github.com/BlockstreamResearch/shrincs-simplicity-verifier) verification logic.
+This document describes how to use the OP_SHRINCS (0xb3) and the OP_SHRINCSADD (0xb4) opcodes, which replace OP_NOP4 and OP_NOP5 respectively, and implement the [SHRINCS](https://github.com/BlockstreamResearch/shrincs-simplicity-verifier) verification logic.
 
 ## Usage
 
@@ -10,21 +10,21 @@ Unlike ECDSA and Schnorr signatures which are small (less than 520 bytes) and ca
 
 **Stateless signature stack layout:**
 
-| Position | Element | Size | Description |
-| :---: | :--- | :--- | :--- | 
-| `[-11]` | `sf part` | 16 bytes |  |
-| `[-10]` | `fors_R` | 32 bytes |  |
-| `[-9..-5]` | `fors_part` (x5) | 368 bytes per part |  |
-| `[-4..-3]` | `xmss_layer` (x2) | 484 bytes per layer |  |
-| `[-2]` | `sighash type` (optional) | 1 byte |  |
-| `[-1]` | `q` | 0 byte | **Type Flag:** `MINIMALDATA` empty array indicating a Stateless signature (`q=0`) |
+| Position | Element | Size |
+| :---: | :--- | :--- |
+| `[-11]` | `sf part` | 16 bytes |
+| `[-10]` | `fors_R` | 32 bytes |
+| `[-9..-5]` | `fors_part` (x5) | 368 bytes per part |
+| `[-4..-3]` | `xmss_layer` (x2) | 484 bytes per layer |
+| `[-2]` | `sighash type` (optional) | 1 byte |
+| `[-1]` | `q` | 1 byte (stateless signatures always require q = 0xff) |
 
 > [!IMPORTANT]
 > **Block Signatures vs. SIGHASH Bytes**
 > Standard UTXO transaction signatures append a 1-byte SIGHASH flag (e.g., `0x01` for `SIGHASH_ALL`) to the signature. However, **Block Signatures (Dynafed) DO NOT use a SIGHASH byte**.
 > 
 
-So, in a script, the required push order is as follows: `<sf> <R> <fp1> <fp2> <fp3> <fp4> <fp5> <xmssl1> <xmssl2> [<sighash_type>] <0>`
+So, in a script, the required push order is as follows: `<sf> <R> <fp1> <fp2> <fp3> <fp4> <fp5> <xmssl1> <xmssl2> [<sighash_type>] <0xff>`
 
 **Stateful signature stack layout:**
 
@@ -42,18 +42,16 @@ So, in a script, the required push order is as follows (example for `q = 3`): `<
 
 ### Opcodes
 
-Both opcodes consume the signature components and public key(s) from the stack, verify the signature, and push exactly one element (`True` or `False`) back to the stack.
-
 **OP_SHRINCS (Single Signature)**
 Behaves similarly to the legacy `OP_CHECKSIG`. The script structure is:
 ```text
 <sig_components> <pubkey> OP_SHRINCS
 ```
 
-**OP_MULTISHRINCS (Multisig)**
-Designed for threshold signature schemes (e.g., 2-of-3), limited to a maximum of 20 public keys. The script structure is:
+**OP_SHRINCSADD**
+ehaves similarly to the `OP_CHECKSIGADD`. This example represent 2-of-3 threshold signature (where the third signer did not provide a signature, hence the `OP_0`):
 ```text
-<sig1_components> <sig2_components> OP_2 <pubkey1> <pubkey2> <pubkey3> OP_3 OP_MULTISHRINCS
+<OP_0> <sig2_components> <sig1_components> <pubkey1> OP_SHRINCS <pubkey2> OP_SHRINCSADD <pubkey3> OP_SHRINCSADD OP_2 OP_NUMEQUAL
 ```
 
-> **Note:** Unlike the legacy `OP_CHECKMULTISIG`, `OP_MULTISHRINCS` strictly adheres to `CLEANSTACK` rules and **does not** require a dummy `OP_0` element to be pushed before the signatures. The opcode dynamically parses the required number of signature components based on the `q` flag of each signature.
+> **Note:** Due to the **Nullfail** rule, the only way for `OP_SHRINCS` to return `False`, and for `OP_SHRINCSADD` to leave the counter unchanged, is if an empty signature (OP_0) is provided. Any other invalid signature will cause the entire script to fail.

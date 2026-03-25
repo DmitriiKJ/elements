@@ -585,7 +585,7 @@ bool shrincs_sign_from_stack(std::vector<std::vector<unsigned char> >& stack, bo
     int q = CScriptNum(stacktop(-1), fRequireMinimal).getint();
     popstack(stack);
 
-    if (q == 0)
+    if (q == 0xff)
     {
         int elems = sighash_type_ext ? 10 : 9;
         // Stateless signature
@@ -611,6 +611,10 @@ bool shrincs_sign_from_stack(std::vector<std::vector<unsigned char> >& stack, bo
 
             std::copy(part.begin(), part.end(), sig_out.begin() + current_offset);
         }
+    }
+    else if (q == 0)
+    {
+        // sig_out empty
     }
     else
     {
@@ -848,7 +852,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                     if (stack.size() < 1)
                         return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
 
-                    valtype pubKey = stacktop(-1);
+                    valtype pubkey = stacktop(-1);
                     popstack(stack);
                     
                     std::vector<unsigned char> sign;
@@ -859,95 +863,45 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
 
                     CScript scriptCode(pbegincodehash, pend);
 
-                    bool fSuccess = checker.CheckSHRINCSSignature(sign, pubKey, scriptCode, sigversion, execdata, flags);
-                    stack.push_back(fSuccess ? vchTrue : vchFalse);
-                    // if (!fSuccess)
-                    //     return set_error(serror, SCRIPT_ERR_CHECKSIGVERIFY);
+                    bool success = false;
+                    
+                    if (sign.size() != 0)
+                    {
+                        success = checker.CheckSHRINCSSignature(sign, pubkey, scriptCode, sigversion, execdata, flags);
+
+                        if (!success && (flags & SCRIPT_VERIFY_NULLFAIL)) return set_error(serror, SCRIPT_ERR_SIG_NULLFAIL);
+                    }
+
+                    stack.push_back(success ? vchTrue : vchFalse);
                 }
                 break;
 
-                case OP_MULTISHRINCS:
-                {
-                    // ([sig ...] num_of_signatures [pubkey ...] num_of_pubkeys -- bool)
-                    
-                    int i = 1;
-                    if ((int)stack.size() < i)
-                        return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+                case OP_SHRINCSADD:
+                { 
+                    // (sig num pubkey -- num)
+                    if (stack.size() < 2) return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
 
-                    int nKeysCount = CScriptNum(stacktop(-i), fRequireMinimal).getint();
-                    if (nKeysCount < 0 || nKeysCount > MAX_PUBKEYS_PER_MULTISIG)
-                        return set_error(serror, SCRIPT_ERR_PUBKEY_COUNT);
+                    const valtype pubkey = stacktop(-1);
+                    const CScriptNum num(stacktop(-2), fRequireMinimal);
+                    popstack(stack);
+                    popstack(stack);
 
-                    nOpCount += nKeysCount;
-                    if (nOpCount > MAX_OPS_PER_SCRIPT)
-                        return set_error(serror, SCRIPT_ERR_OP_COUNT);
-                    i++;
-                    // ikey2 is the position of last non-signature item in the stack. Top stack item = 1.
-                    // With SCRIPT_VERIFY_NULLFAIL, this is used for cleanup if operation fails.
-                    i += nKeysCount;
-                    if ((int)stack.size() < i)
-                        return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+                    std::vector<unsigned char> sign;
+                    if (!shrincs_sign_from_stack(stack, fRequireMinimal, serror, sign, !checker.isBlockChecker()))
+                    {
+                        return false;
+                    }
 
-                    int nSigsCount = CScriptNum(stacktop(-i), fRequireMinimal).getint();
-                    if (nSigsCount < 0 || nSigsCount > nKeysCount)
-                        return set_error(serror, SCRIPT_ERR_SIG_COUNT);
-
-                    bool fSuccess = true;
                     CScript scriptCode(pbegincodehash, pend);
-
-                    // keys amount
-                    popstack(stack);
-
-                    std::vector<valtype> keys(nKeysCount);
-                    for (int j = 0; j < nKeysCount; j++)
+                    bool success = false;
+                    
+                    if (sign.size() != 0)
                     {
-                        keys[j] = stacktop(-1);
-                        assert(keys[j].size() == 32);
-                        popstack(stack);
+                        success = checker.CheckSHRINCSSignature(sign, pubkey, scriptCode, sigversion, execdata, flags);
+
+                        if (!success && (flags & SCRIPT_VERIFY_NULLFAIL)) return set_error(serror, SCRIPT_ERR_SIG_NULLFAIL);
                     }
-
-                    // signatures amount
-                    popstack(stack);
-
-                    std::vector<std::vector<unsigned char>> sigs(nSigsCount);
-                    for (int j = 0; j < nSigsCount; j++)
-                    {
-                        if (!shrincs_sign_from_stack(stack, fRequireMinimal, serror, sigs[j], !checker.isBlockChecker()))
-                        {
-                            return false;
-                        }
-                    }
-
-                    int ikey = 0;
-                    int isig = 0;
-                    bool empty_sigs = true;
-
-                    while (fSuccess && nSigsCount > 0)
-                    {
-                        bool fOk = checker.CheckSHRINCSSignature(sigs[isig], keys[ikey], scriptCode, sigversion, execdata, flags);
-
-                        if (sigs[isig].size()) {
-                            empty_sigs = false;
-                        }
-
-                        if (fOk) {
-                            isig++;
-                            nSigsCount--;
-                        }
-                        ikey++;
-                        nKeysCount--;
-
-                        // If there are more signatures left than keys left,
-                        // then too many signatures have failed. Exit early,
-                        // without checking any further signatures.
-                        if (nSigsCount > nKeysCount)
-                            fSuccess = false;
-                    }
-
-                    if (!fSuccess && (flags & SCRIPT_VERIFY_NULLFAIL) && empty_sigs)
-                        return set_error(serror, SCRIPT_ERR_SIG_NULLFAIL);
-
-                    stack.push_back(fSuccess ? vchTrue : vchFalse);
+                    stack.push_back((num + (success ? 1 : 0)).getvch());
                 }
                 break;
 
