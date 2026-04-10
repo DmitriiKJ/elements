@@ -2047,7 +2047,6 @@ BOOST_AUTO_TEST_CASE(multishrincs_opcode_test)
     SHRINCS::SecretKey sk2 = SHRINCS::SecretKey();
     SHRINCS::shrincs_key_gen(pk2, sk2, state);
 
-
     CMutableTransaction txTo;
     txTo.vin.resize(1);
     txTo.vout.resize(1);

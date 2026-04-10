@@ -93,7 +93,7 @@ class BlockSignTest(BitcoinTestFramework):
         signblockscript = make_signblockscript(self.num_keys, self.required_signers, self.keys)
         self.witnessScript = signblockscript # post-dynafed this becomes witnessScript
 
-        my_pq_key = "c1df2f9fb6d83b72d1f86ce437cba3d787e72eb15fa6d02f4d970d1fb68af392b1a8c2a6e4c34d68803f3febddcffb8bb1ee159628e661448fe216ad9d3bc293842b4e96c6bcd5cdc1be544486457ca14cc7d7e46e177814ac921576365cdce0"
+        my_pq_key = "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf26d0a4f0ef0e40cc280434e91bdbd973bfcb30768b8415fd7a288c44759a7c5178c5d5432c2c849bd2be3245644ebd4071c4796d15e24973a3891e89897948ad87"
         self.extra_args = [[
             "-signblockscript={}".format(signblockscript),
             "-con_max_block_sig_size={}".format(self.required_signers*74+self.num_nodes*33),
@@ -240,7 +240,7 @@ class BlockSignTest(BitcoinTestFramework):
         self.mine_blocks(10, True)
 
         keys = [
-            "c1df2f9fb6d83b72d1f86ce437cba3d787e72eb15fa6d02f4d970d1fb68af393", "c1df2f9fb6d83b72d1f86ce437cba3d787e72eb15fa6d02f4d970d1fb68af392", "c1df2f9fb6d83b72d1f86ce437cba3d787e72eb15fa6d02f4d970d1fb68af392", "c1df2f9fb6d83b72d1f86ce437cba3d787e72eb15fa6d02f4d970d1fb68af392"
+            "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf25", "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf26", "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf26", "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf26"
         ]
 
         signblockscript = make_signblockscript_shrincs(self.num_keys, self.required_signers, keys)

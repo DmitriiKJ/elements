@@ -587,9 +587,9 @@ bool shrincs_sign_from_stack(std::vector<std::vector<unsigned char> >& stack, bo
 
     if (q == 0xff)
     {
-        int elems = sighash_type_ext ? 10 : 9;
+        unsigned int elems = sighash_type_ext ? 9 : 8;
         // Stateless signature
-        // (sf fors_R fors_sigs*5 xmss_layer*2 [sighashtype])
+        // (sf pors_R pors_sigs*4 xmss_layer*2 [sighashtype])
         if (stack.size() < elems)
             return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
         
@@ -3167,8 +3167,7 @@ bool GenericTransactionSignatureChecker<T>::CheckSHRINCSSignature(const std::vec
             break;
     }
 
-    if (!VerifySHRINCSSignature(sig, pubkey, sighash)) return false;
-    return true;
+    return VerifySHRINCSSignature(sig, pubkey, sighash);
 }
 
 template <class T>
