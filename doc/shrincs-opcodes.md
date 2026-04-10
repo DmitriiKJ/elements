@@ -12,9 +12,9 @@ Unlike ECDSA and Schnorr signatures which are small (less than 520 bytes) and ca
 
 | Position | Element | Size |
 | :---: | :--- | :--- |
-| `[-11]` | `sf part` | 16 bytes |
-| `[-10]` | `fors_R` | 32 bytes |
-| `[-9..-5]` | `fors_part` (x5) | 368 bytes per part |
+| `[-10]` | `sf part` | 16 bytes |
+| `[-9]` | `pors_R` | 32 bytes |
+| `[-8..-5]` | `pors_part` (x4) | 388 bytes per part |
 | `[-4..-3]` | `xmss_layer` (x2) | 484 bytes per layer |
 | `[-2]` | `sighash type` (optional) | 1 byte |
 | `[-1]` | `q` | 1 byte (stateless signatures always require q = 0xff) |
@@ -24,11 +24,11 @@ Unlike ECDSA and Schnorr signatures which are small (less than 520 bytes) and ca
 > Standard UTXO transaction signatures append a 1-byte SIGHASH flag (e.g., `0x01` for `SIGHASH_ALL`) to the signature. However, **Block Signatures (Dynafed) DO NOT use a SIGHASH byte**.
 > 
 
-So, in a script, the required push order is as follows: `<sf> <R> <fp1> <fp2> <fp3> <fp4> <fp5> <xmssl1> <xmssl2> [<sighash_type>] <0xff>`
+So, in a script, the required push order is as follows: `<sf> <R> <pp1> <pp2> <pp3> <pp4> <xmssl1> <xmssl2> [<sighash_type>] <0xff>`
 
 **Stateful signature stack layout:**
 
-State (q) from 1 to 159 means leaf in a uxmss tree, so for q = 159 merkle path consists of 158 leaves, otherwise q represents the number of Merkle path leaves (mpl).
+State (q) from 1 to 142 means leaf in a uxmss tree, so for q = 142 merkle path consists of 141 leaves, otherwise q represents the number of Merkle path leaves (mpl).
 
 | Position | Element | Size |
 | :---: | :--- | :--- |
