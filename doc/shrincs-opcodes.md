@@ -1,6 +1,6 @@
 # SHRINCS Opcodes Specification
 
-This document describes how to use the OP_SHRINCS (0xb3) and the OP_SHRINCSADD (0xb4) opcodes, which replace OP_NOP4 and OP_NOP5 respectively, and implement the [SHRINCS](https://github.com/BlockstreamResearch/shrincs-simplicity-verifier) verification logic.
+This document describes how to use the OP_SHRINCS (0xb3) and the OP_SHRINCSADD (0xb4) opcodes, which replace OP_NOP4 and OP_NOP5 respectively, and implement the [SHRINCS](https://github.com/BlockstreamResearch/shrincs-specification) verification logic.
 
 ## Usage
 
