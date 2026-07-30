@@ -585,70 +585,52 @@ bool shrincs_sign_from_stack(std::vector<std::vector<unsigned char> >& stack, bo
     int q = CScriptNum(stacktop(-1), fRequireMinimal).getint();
     popstack(stack);
 
-    if (q == 0xff)
+    // sig_out stays empty, which is the only way to fail without aborting the script.
+    if (q == SHRINCS::Q_EMPTY)
+        return true;
+
+    size_t elems;
+    if (q == SHRINCS::Q_STATELESS)
     {
-        unsigned int elems = sighash_type_ext ? 9 : 8;
         // Stateless signature
-        // (sf pors_R pors_sigs*4 xmss_layer*2 [sighashtype])
-        if (stack.size() < elems)
-            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
-        
-        std::vector<valtype> reversed_parts;
-        size_t total_size = 0;
-        for (int i = 0; i < elems; i++) {
-            valtype sign_part = stacktop(-1);
-            popstack(stack);
-            
-            total_size += sign_part.size();
-            reversed_parts.push_back(sign_part); 
-        }
-
-        sig_out.resize(total_size);
-
-        size_t current_offset = total_size;
-        for (const auto& part : reversed_parts) {
-            current_offset -= part.size();
-
-            std::copy(part.begin(), part.end(), sig_out.begin() + current_offset);
-        }
+        // (R fors_part*10 ht_part*10 [sighashtype])
+        elems = SHRINCS::SL_PART_COUNT;
     }
-    else if (q == 0)
+    else if (q >= 1 && q <= (int)FXMSS_HEIGHT)
     {
-        // sig_out empty
+        // Stateful signature
+        // (R leaf_index wots merkle_path_element*q [sighashtype])
+        elems = 3 + (size_t)q;
     }
     else
     {
-        // Stateful signature
-        // (sl wots merkle_path_element*q sighashtype)
-        if (q > HSF + 1)
-            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
-        else if (q == HSF + 1)
-            q = HSF;
+        return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+    }
 
-        int elems = q + (sighash_type_ext ? 3 : 2);
+    if (sighash_type_ext) elems += 1;
 
-        if (stack.size() < elems)
-            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+    if (stack.size() < elems)
+        return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
 
-        std::vector<valtype> reversed_parts;
-        size_t total_size = 0;
+    std::vector<valtype> reversed_parts;
+    reversed_parts.reserve(elems);
 
-        for (int i = 0; i < elems; i++) {
-            valtype sign_part = stacktop(-1);
-            popstack(stack);
-            
-            total_size += sign_part.size();
-            reversed_parts.push_back(sign_part); 
-        }
+    size_t total_size = 0;
+    for (size_t i = 0; i < elems; i++) {
+        valtype sign_part = stacktop(-1);
+        popstack(stack);
 
-        sig_out.resize(total_size);
+        total_size += sign_part.size();
+        reversed_parts.push_back(sign_part);
+    }
 
-        size_t current_offset = total_size;
-        for (const auto& part : reversed_parts) {
-            current_offset -= part.size();
+    sig_out.resize(total_size);
 
-            std::copy(part.begin(), part.end(), sig_out.begin() + current_offset);
-        }
+    size_t current_offset = total_size;
+    for (const auto& part : reversed_parts) {
+        current_offset -= part.size();
+
+        std::copy(part.begin(), part.end(), sig_out.begin() + current_offset);
     }
 
     return true;
@@ -3086,10 +3068,17 @@ template <class T>
 bool GenericTransactionSignatureChecker<T>::VerifySHRINCSSignature(const std::vector<unsigned char>& sig, const std::vector<unsigned char>& pubkey, const uint256& sighash) const
 {
     SHRINCS::PublicKey pk;
-    pk.seed = std::vector<unsigned char>(pubkey.begin(), pubkey.begin() + N);
-    pk.root = std::vector<unsigned char>(pubkey.begin() + N, pubkey.end());
+    if (!SHRINCS::shrincs_pubkey_parse(pubkey, pk))
+        return false;
 
-    return SHRINCS::shrincs_verify(std::vector<unsigned char>(sighash.begin(), sighash.end()), sig.data(), sig.size() - 1, pk);
+    // The trailing sighash byte is not part of the signature.
+    if (sig.empty())
+        return false;
+
+    return SHRINCS::shrincs_verify(
+        std::vector<unsigned char>(sighash.begin(), sighash.end()),
+        std::vector<unsigned char>(sig.begin(), sig.end() - 1),
+        pk);
 }
 
 template <class T>
@@ -3148,7 +3137,12 @@ bool GenericTransactionSignatureChecker<T>::CheckSchnorrSignature(Span<const uns
 template <class T>
 bool GenericTransactionSignatureChecker<T>::CheckSHRINCSSignature(const std::vector<unsigned char>& sig, const std::vector<unsigned char>& pubkey, const CScript& scriptCode, SigVersion sigversion, ScriptExecutionData& execdata, unsigned int flags) const
 {
-    assert(pubkey.size() == 32);
+    // The pubkey comes straight off the script, so its size must not be asserted.
+    if (pubkey.size() != SHRINCS::PUBKEY_SIZE)
+        return false;
+
+    if (sig.empty())
+        return false;
 
     int hashtype = sig.back();
 

@@ -42,16 +42,14 @@ public:
     bool CheckSHRINCSSignature(const std::vector<unsigned char>& sig, const std::vector<unsigned char>& pubkey, const CScript& scriptCode, SigVersion sigversion, ScriptExecutionData& execdata, unsigned int flags) const override
     {
         // Blocksigners only use stateless signature path
-        if (sig.size() != SL_SIZE)
-            return false;
-
-        if (pubkey.size() != 2 * N)
+        if (sig.size() != SPHX_SIGNATURE_SIZE)
             return false;
 
         SHRINCS::PublicKey pk;
-        pk.seed = std::vector<unsigned char>(pubkey.begin(), pubkey.begin() + N);
-        pk.root = std::vector<unsigned char>(pubkey.begin() + N, pubkey.end());
-        return SHRINCS::shrincs_verify(std::vector<unsigned char>(hash.begin(), hash.end()), sig.data(), sig.size(), pk);
+        if (!SHRINCS::shrincs_pubkey_parse(pubkey, pk))
+            return false;
+
+        return SHRINCS::shrincs_verify(std::vector<unsigned char>(hash.begin(), hash.end()), sig, pk);
     }
 
     virtual bool isBlockChecker() const override

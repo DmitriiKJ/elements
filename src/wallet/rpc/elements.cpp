@@ -165,32 +165,33 @@ RPCHelpMan signblock()
             throw JSONRPCError(RPC_WALLET_ERROR, "No PQ miner key configured! Pass -pqminerkey to the node.");
         }
         
-        std::vector<unsigned char> full_key = ParseHex(pq_key_hex);
-        SHRINCS::SecretKey sk = SHRINCS::SecretKey();
-        sk.pk.seed = std::vector<unsigned char>(full_key.begin(), full_key.begin() + 16);
-        sk.pk.root = std::vector<unsigned char>(full_key.begin() + 16, full_key.begin() + 32);
-        sk.sf = std::vector<unsigned char>(full_key.begin() + 32, full_key.begin() + 48);
-        sk.sl = std::vector<unsigned char>(full_key.begin() + 48, full_key.begin() + 64);
-        sk.prf = std::vector<unsigned char>(full_key.begin() + 64, full_key.begin() + 80);
-        sk.seed = std::vector<unsigned char>(full_key.begin() + 80, full_key.begin() + 96);
+        SHRINCS::SecretKey sk;
+        if (!SHRINCS::shrincs_seckey_parse(ParseHex(pq_key_hex), sk)) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Malformed PQ miner key: expected %d bytes", SHRINCS::SECKEY_SIZE));
+        }
 
         uint256 sighash = block.GetHash();
-        unsigned char* raw_sig = SHRINCS::shrincs_sign_stateless(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk);
 
-        std::vector<unsigned char> pq_sig(raw_sig, raw_sig + SL_SIZE);
-        delete[] raw_sig;
+        // Blocksigners only use the stateless path, which an exhausted state counter forces.
+        std::vector<unsigned char> pq_sig;
+        if (!SHRINCS::shrincs_sign(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk, UINT32_MAX, {}, pq_sig)) {
+            throw JSONRPCError(RPC_VERIFY_ERROR, "Could not create the SHRINCS block signature.");
+        }
+        if (pq_sig.size() != SPHX_SIGNATURE_SIZE) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "PQ miner key does not yield a stateless signature; check its tree structure.");
+        }
+
+        std::vector<unsigned char> pubkey;
+        if (!SHRINCS::shrincs_pubkey_serialize(sk.pk, pubkey)) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Malformed PQ miner key: could not derive the public key.");
+        }
 
         UniValue ret(UniValue::VARR);
         UniValue obj(UniValue::VOBJ);
-            
-        std::vector<unsigned char> pubkey;
-        pubkey.reserve(2 * N);
-        pubkey.insert(pubkey.end(), sk.pk.seed.begin(), sk.pk.seed.end());
-        pubkey.insert(pubkey.end(), sk.pk.root.begin(), sk.pk.root.end());
 
         obj.pushKV("pubkey", HexStr(pubkey));
-        obj.pushKV("sig", HexStr(pq_sig)); 
-            
+        obj.pushKV("sig", HexStr(pq_sig));
+
         ret.push_back(obj);
         return ret;
     }

@@ -1895,60 +1895,81 @@ BOOST_AUTO_TEST_CASE(bip341_keypath_test_vectors)
 
 }
 
+// The stateful path signs from a UXMSS tree, where state_ctr N yields a Merkle path
+// of N + 1 elements. Depth 32 leaves room to exercise both small and multi-byte q.
+static const std::vector<unsigned char> SHRINCS_TEST_STRUCTURE = {FXMSS_SHAPE_UNBALANCED, 32};
+
+static void shrincs_make_keypair(unsigned char salt, SHRINCS::SecretKey& out_sk, std::vector<unsigned char>& out_pubkey)
+{
+    std::vector<unsigned char> seed(3 * N);
+    for (size_t i = 0; i < seed.size(); i++) {
+        seed[i] = static_cast<unsigned char>(i * 7 + salt);
+    }
+
+    BOOST_REQUIRE(SHRINCS::shrincs_keygen(seed.data(), SHRINCS_TEST_STRUCTURE, out_sk));
+    BOOST_REQUIRE(SHRINCS::shrincs_pubkey_serialize(out_sk.pk, out_pubkey));
+    BOOST_REQUIRE_EQUAL(out_pubkey.size(), SHRINCS::PUBKEY_SIZE);
+}
+
+static std::vector<unsigned char> shrincs_make_sig(const uint256& sighash, const SHRINCS::SecretKey& sk, uint32_t state_ctr, int hashtype)
+{
+    std::vector<unsigned char> sig;
+    BOOST_REQUIRE(SHRINCS::shrincs_sign(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk, state_ctr, {}, sig));
+    sig.push_back(static_cast<unsigned char>(hashtype));
+
+    return sig;
+}
+
+static bool shrincs_eval_witness(CMutableTransaction& txTo, const CScript& scriptCode, const CScriptWitness& witness, unsigned int flags, ScriptError* err)
+{
+    txTo.witness.vtxinwit[0].scriptWitness = witness;
+
+    PrecomputedTransactionData txdata(txTo);
+    CTransaction finalTx(txTo);
+    GenericTransactionSignatureChecker<CTransaction> checker(&finalTx, 0, CConfidentialValue(1000), txdata, MissingDataBehavior::FAIL);
+
+    uint256 scriptHash;
+    CSHA256().Write(scriptCode.data(), scriptCode.size()).Finalize(scriptHash.begin());
+    CScript scriptPubKey;
+    scriptPubKey << OP_0 << ToByteVector(scriptHash);
+
+    return VerifyScript(CScript(), scriptPubKey, &witness, flags, checker, err);
+}
+
 BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
 {
-    SHRINCS::PublicKey pk = SHRINCS::PublicKey();
-    SHRINCS::SecretKey sk = SHRINCS::SecretKey();
-    SHRINCS::State state = SHRINCS::State();
-
-    SHRINCS::shrincs_key_gen(pk, sk, state);
+    SHRINCS::SecretKey sk;
+    std::vector<unsigned char> full_pubkey;
+    shrincs_make_keypair(0x00, sk, full_pubkey);
 
     CMutableTransaction txTo;
     txTo.vin.resize(1);
     txTo.vout.resize(1);
     txTo.witness.vtxinwit.resize(1);
 
-    std::vector<unsigned char> full_pubkey;
-
-    full_pubkey.reserve(pk.seed.size() + pk.root.size());
-    full_pubkey.insert(full_pubkey.end(), pk.seed.begin(), pk.seed.end());
-    full_pubkey.insert(full_pubkey.end(), pk.root.begin(), pk.root.end());
-    
     CScript scriptCode;
     scriptCode << full_pubkey << OP_SHRINCS;
 
     unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA;
 
     {
-        // SIGHASH_ALL
+        // SIGHASH_ALL, stateful with a single Merkle path element
         uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ALL, 1000, SigVersion::WITNESS_V0, flags, nullptr);
 
-        auto sig_ptr = SHRINCS::shrincs_sign_stateful(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk, state);
-        std::vector<unsigned char> sig = std::vector<unsigned char>(sig_ptr, sig_ptr + (N + WOTS_SIGN_LEN + state.q * N));
-        sig.push_back(SIGHASH_ALL);
-        delete[] sig_ptr;
+        std::vector<unsigned char> sig = shrincs_make_sig(sighash, sk, 0, SIGHASH_ALL);
+        BOOST_CHECK_EQUAL(sig.size(), SHRINCS::SF_SIGNATURE_SIZE_MIN + 1);
 
         {
             CScriptWitness witness;
             SHRINCS::shrincs_sig_to_witness(witness, sig, true);
             witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
-            txTo.witness.vtxinwit[0].scriptWitness = witness;
 
             ScriptError err;
-            PrecomputedTransactionData txdata(txTo);
-            CTransaction finalTx(txTo);
-            GenericTransactionSignatureChecker<CTransaction> checker(&finalTx, 0, CConfidentialValue(1000), txdata, MissingDataBehavior::FAIL);
-            
-            uint256 scriptHash;
-            CSHA256().Write(scriptCode.data(), scriptCode.size()).Finalize(scriptHash.begin());
-            CScript scriptPubKey;
-            scriptPubKey << OP_0 << ToByteVector(scriptHash);
-            bool res = VerifyScript(CScript(), scriptPubKey, &witness, flags, checker, &err);
+            bool res = shrincs_eval_witness(txTo, scriptCode, witness, flags, &err);
 
             BOOST_CHECK_EQUAL(res, true);
             BOOST_CHECK_EQUAL(err, SCRIPT_ERR_OK);
         }
-
 
         // Modify the signature to make it invalid
         sig[0] ^= 1;
@@ -1957,18 +1978,9 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
             CScriptWitness witness;
             SHRINCS::shrincs_sig_to_witness(witness, sig, true);
             witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
-            txTo.witness.vtxinwit[0].scriptWitness = witness;
 
             ScriptError err;
-            PrecomputedTransactionData txdata(txTo);
-            CTransaction finalTx(txTo);
-            GenericTransactionSignatureChecker<CTransaction> checker(&finalTx, 0, CConfidentialValue(1000), txdata, MissingDataBehavior::FAIL);
-            
-            uint256 scriptHash;
-            CSHA256().Write(scriptCode.data(), scriptCode.size()).Finalize(scriptHash.begin());
-            CScript scriptPubKey;
-            scriptPubKey << OP_0 << ToByteVector(scriptHash);
-            bool res = VerifyScript(CScript(), scriptPubKey, &witness, flags, checker, &err);
+            bool res = shrincs_eval_witness(txTo, scriptCode, witness, flags, &err);
 
             BOOST_CHECK_EQUAL(res, false);
             BOOST_CHECK_EQUAL(err, SCRIPT_ERR_EVAL_FALSE);
@@ -1976,111 +1988,151 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
     }
 
     {
-        // SIGHASH_ANYONECANPAY
+        // SIGHASH_ANYONECANPAY, stateful with q = 25 so that q needs a real push
+        // rather than OP_1..OP_16.
         uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ANYONECANPAY, 1000, SigVersion::WITNESS_V0, flags, nullptr);
 
-        state.q = 25; // Test if a value that more then 16 (OP_16) can be handled correctly
-        auto sig_ptr = SHRINCS::shrincs_sign_stateful(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk, state);
-        std::vector<unsigned char> sig = std::vector<unsigned char>(sig_ptr, sig_ptr + (N + WOTS_SIGN_LEN + state.q * N));
-        sig.push_back(SIGHASH_ANYONECANPAY);
-        delete[] sig_ptr;
+        std::vector<unsigned char> sig = shrincs_make_sig(sighash, sk, 24, SIGHASH_ANYONECANPAY);
 
         CScriptWitness witness;
         SHRINCS::shrincs_sig_to_witness(witness, sig, true);
+        BOOST_CHECK_EQUAL(witness.stack.size(), 3 + 25 + 2);
         witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
-        txTo.witness.vtxinwit[0].scriptWitness = witness;
 
         ScriptError err;
-        PrecomputedTransactionData txdata(txTo);
-        CTransaction finalTx(txTo);
-        GenericTransactionSignatureChecker<CTransaction> checker(&finalTx, 0, CConfidentialValue(1000), txdata, MissingDataBehavior::FAIL);
-        
-        uint256 scriptHash;
-        CSHA256().Write(scriptCode.data(), scriptCode.size()).Finalize(scriptHash.begin());
-        CScript scriptPubKey;
-        scriptPubKey << OP_0 << ToByteVector(scriptHash);
-        bool res = VerifyScript(CScript(), scriptPubKey, &witness, flags, checker, &err);
+        bool res = shrincs_eval_witness(txTo, scriptCode, witness, flags, &err);
 
         BOOST_CHECK_EQUAL(res, true);
         BOOST_CHECK_EQUAL(err, SCRIPT_ERR_OK);
     }
 
     {
-        // SIGHASH_NONE
+        // SIGHASH_NONE, stateless: an exhausted state counter forces the SLH-DSA path
         uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_NONE, 1000, SigVersion::WITNESS_V0, flags, nullptr);
 
-        auto sig_ptr = SHRINCS::shrincs_sign_stateless(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk);
-        std::vector<unsigned char> sig = std::vector<unsigned char>(sig_ptr, sig_ptr + SL_SIZE);
-        sig.push_back(SIGHASH_NONE);
-        delete[] sig_ptr;
+        std::vector<unsigned char> sig = shrincs_make_sig(sighash, sk, UINT32_MAX, SIGHASH_NONE);
+        BOOST_CHECK_EQUAL(sig.size(), SPHX_SIGNATURE_SIZE + 1);
 
         CScriptWitness witness;
         SHRINCS::shrincs_sig_to_witness(witness, sig, true);
+        BOOST_CHECK_EQUAL(witness.stack.size(), SHRINCS::SL_PART_COUNT + 2);
         witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
-        txTo.witness.vtxinwit[0].scriptWitness = witness;
 
         ScriptError err;
-        PrecomputedTransactionData txdata(txTo);
-        CTransaction finalTx(txTo);
-        GenericTransactionSignatureChecker<CTransaction> checker(&finalTx, 0, CConfidentialValue(1000), txdata, MissingDataBehavior::FAIL);
-        
-        uint256 scriptHash;
-        CSHA256().Write(scriptCode.data(), scriptCode.size()).Finalize(scriptHash.begin());
-        CScript scriptPubKey;
-        scriptPubKey << OP_0 << ToByteVector(scriptHash);
-        bool res = VerifyScript(CScript(), scriptPubKey, &witness, flags, checker, &err);
+        bool res = shrincs_eval_witness(txTo, scriptCode, witness, flags, &err);
 
         BOOST_CHECK_EQUAL(res, true);
         BOOST_CHECK_EQUAL(err, SCRIPT_ERR_OK);
     }
 }
 
-BOOST_AUTO_TEST_CASE(multishrincs_opcode_test)
+BOOST_AUTO_TEST_CASE(shrincs_opcode_malformed_test)
 {
-    SHRINCS::State state = SHRINCS::State();
-
-    SHRINCS::PublicKey pk1 = SHRINCS::PublicKey();
-    SHRINCS::SecretKey sk1 = SHRINCS::SecretKey();
-    SHRINCS::shrincs_key_gen(pk1, sk1, state);
-
-    SHRINCS::PublicKey pk2 = SHRINCS::PublicKey();
-    SHRINCS::SecretKey sk2 = SHRINCS::SecretKey();
-    SHRINCS::shrincs_key_gen(pk2, sk2, state);
+    SHRINCS::SecretKey sk;
+    std::vector<unsigned char> full_pubkey;
+    shrincs_make_keypair(0x00, sk, full_pubkey);
 
     CMutableTransaction txTo;
     txTo.vin.resize(1);
     txTo.vout.resize(1);
     txTo.witness.vtxinwit.resize(1);
 
-    std::vector<unsigned char> full_pubkey1;
-    std::vector<unsigned char> full_pubkey2;
-    std::vector<unsigned char> full_pubkey3(32, 0);
+    unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA;
 
-    full_pubkey1.reserve(pk1.seed.size() + pk1.root.size());
-    full_pubkey1.insert(full_pubkey1.end(), pk1.seed.begin(), pk1.seed.end());
-    full_pubkey1.insert(full_pubkey1.end(), pk1.root.begin(), pk1.root.end());
+    {
+        // A pubkey of the wrong size must be rejected, not asserted on.
+        std::vector<unsigned char> short_pubkey(full_pubkey.begin(), full_pubkey.end() - 1);
 
-    full_pubkey2.reserve(pk2.seed.size() + pk2.root.size());
-    full_pubkey2.insert(full_pubkey2.end(), pk2.seed.begin(), pk2.seed.end());
-    full_pubkey2.insert(full_pubkey2.end(), pk2.root.begin(), pk2.root.end());
-    
+        CScript scriptCode;
+        scriptCode << short_pubkey << OP_SHRINCS;
+
+        uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ALL, 1000, SigVersion::WITNESS_V0, flags, nullptr);
+        std::vector<unsigned char> sig = shrincs_make_sig(sighash, sk, 0, SIGHASH_ALL);
+
+        CScriptWitness witness;
+        SHRINCS::shrincs_sig_to_witness(witness, sig, true);
+        witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
+
+        ScriptError err;
+        bool res = shrincs_eval_witness(txTo, scriptCode, witness, flags, &err);
+
+        BOOST_CHECK_EQUAL(res, false);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_EVAL_FALSE);
+    }
+
+    CScript scriptCode;
+    scriptCode << full_pubkey << OP_SHRINCS;
+
+    uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ALL, 1000, SigVersion::WITNESS_V0, flags, nullptr);
+    std::vector<unsigned char> sig = shrincs_make_sig(sighash, sk, 0, SIGHASH_ALL);
+
+    {
+        // q beyond the tree height names no signature layout.
+        CScriptWitness witness;
+        SHRINCS::shrincs_sig_to_witness(witness, sig, true);
+        witness.stack.back() = CScriptNum(SHRINCS::Q_STATELESS + 1).getvch();
+        witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
+
+        ScriptError err;
+        bool res = shrincs_eval_witness(txTo, scriptCode, witness, flags, &err);
+
+        BOOST_CHECK_EQUAL(res, false);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_INVALID_STACK_OPERATION);
+    }
+
+    {
+        // q claiming more Merkle path elements than the stack holds.
+        CScriptWitness witness;
+        SHRINCS::shrincs_sig_to_witness(witness, sig, true);
+        witness.stack.back() = CScriptNum(FXMSS_HEIGHT).getvch();
+        witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
+
+        ScriptError err;
+        bool res = shrincs_eval_witness(txTo, scriptCode, witness, flags, &err);
+
+        BOOST_CHECK_EQUAL(res, false);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_INVALID_STACK_OPERATION);
+    }
+
+    {
+        // An empty signature is the only way to fail without aborting the script.
+        CScriptWitness witness;
+        SHRINCS::shrincs_sig_to_witness(witness, std::vector<unsigned char>(), true);
+        witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
+
+        ScriptError err;
+        bool res = shrincs_eval_witness(txTo, scriptCode, witness, flags, &err);
+
+        BOOST_CHECK_EQUAL(res, false);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_EVAL_FALSE);
+    }
+}
+
+BOOST_AUTO_TEST_CASE(multishrincs_opcode_test)
+{
+    SHRINCS::SecretKey sk1, sk2;
+    std::vector<unsigned char> full_pubkey1, full_pubkey2;
+    shrincs_make_keypair(0x11, sk1, full_pubkey1);
+    shrincs_make_keypair(0x22, sk2, full_pubkey2);
+
+    // The third signer provides no signature, so its key is never checked.
+    std::vector<unsigned char> full_pubkey3(SHRINCS::PUBKEY_SIZE, 0);
+
+    CMutableTransaction txTo;
+    txTo.vin.resize(1);
+    txTo.vout.resize(1);
+    txTo.witness.vtxinwit.resize(1);
+
     CScript scriptCode;
     scriptCode << full_pubkey1 << OP_SHRINCS << full_pubkey2 << OP_SHRINCSADD << full_pubkey3 << OP_SHRINCSADD << OP_2 << OP_NUMEQUAL;
 
     unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA;
 
     uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ALL, 1000, SigVersion::WITNESS_V0, flags, nullptr);
-
-    auto sig_ptr_1 = SHRINCS::shrincs_sign_stateful(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk1, state);
-    std::vector<unsigned char> sig1 = std::vector<unsigned char>(sig_ptr_1, sig_ptr_1 + (N + WOTS_SIGN_LEN + state.q * N));
-    sig1.push_back(SIGHASH_ALL);
-    delete[] sig_ptr_1;
+    std::vector<unsigned char> sig1 = shrincs_make_sig(sighash, sk1, 0, SIGHASH_ALL);
 
     sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ANYONECANPAY, 1000, SigVersion::WITNESS_V0, flags, nullptr);
-    auto sig_ptr_2 = SHRINCS::shrincs_sign_stateless(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk2);
-    std::vector<unsigned char> sig2 = std::vector<unsigned char>(sig_ptr_2, sig_ptr_2 + SL_SIZE);
-    sig2.push_back(SIGHASH_ANYONECANPAY);
-    delete[] sig_ptr_2;
+    std::vector<unsigned char> sig2 = shrincs_make_sig(sighash, sk2, UINT32_MAX, SIGHASH_ANYONECANPAY);
 
     CScriptWitness witness;
 
@@ -2088,18 +2140,9 @@ BOOST_AUTO_TEST_CASE(multishrincs_opcode_test)
     SHRINCS::shrincs_sig_to_witness(witness, sig2, true);
     SHRINCS::shrincs_sig_to_witness(witness, sig1, true);
     witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
-    txTo.witness.vtxinwit[0].scriptWitness = witness;
 
     ScriptError err;
-    PrecomputedTransactionData txdata(txTo);
-    CTransaction finalTx(txTo);
-    GenericTransactionSignatureChecker<CTransaction> checker(&finalTx, 0, CConfidentialValue(1000), txdata, MissingDataBehavior::FAIL);
-    
-    uint256 scriptHash;
-    CSHA256().Write(scriptCode.data(), scriptCode.size()).Finalize(scriptHash.begin());
-    CScript scriptPubKey;
-    scriptPubKey << OP_0 << ToByteVector(scriptHash);
-    bool res = VerifyScript(CScript(), scriptPubKey, &witness, flags, checker, &err);
+    bool res = shrincs_eval_witness(txTo, scriptCode, witness, flags, &err);
 
     BOOST_CHECK_EQUAL(res, true);
     BOOST_CHECK_EQUAL(err, SCRIPT_ERR_OK);

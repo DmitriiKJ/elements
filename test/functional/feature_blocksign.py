@@ -35,13 +35,16 @@ def make_signblockscript(num_nodes, required_signers, keys):
     script += "ae" # OP_CHECKMULTISIG
     return script
 
+# A SHRINCS public key is pk_seed || sl_root || sf_root, so it needs a 48-byte push.
+SHRINCS_PUBKEY_PUSH = "30"
+
 def make_signblockscript_shrincs(num_nodes, required_signers, keys):
     assert num_nodes >= required_signers
-    script = "20"
+    script = SHRINCS_PUBKEY_PUSH
     script += keys[0]
     script += "b3"
     for i in range(1, num_nodes):
-        script += "20"
+        script += SHRINCS_PUBKEY_PUSH
         script += keys[i]
         script += "b4"
     script += "{}".format(50 + required_signers)
@@ -93,7 +96,8 @@ class BlockSignTest(BitcoinTestFramework):
         signblockscript = make_signblockscript(self.num_keys, self.required_signers, self.keys)
         self.witnessScript = signblockscript # post-dynafed this becomes witnessScript
 
-        my_pq_key = "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf26d0a4f0ef0e40cc280434e91bdbd973bfcb30768b8415fd7a288c44759a7c5178c5d5432c2c849bd2be3245644ebd4071c4796d15e24973a3891e89897948ad87"
+        # 82-byte SHRINCS secret key: sk_seed || sk_prf || pk_seed || sl_root || sf_structure || sf_root
+        my_pq_key = "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf26d0a4f0ef0e40cc280434e91bdbd973bf247781f2c9fe7a424bf3a34bd0f6979b0010e417c1b9c7dcc116e62a893d06ff3eb1"
         self.extra_args = [[
             "-signblockscript={}".format(signblockscript),
             "-con_max_block_sig_size={}".format(self.required_signers*74+self.num_nodes*33),
@@ -239,9 +243,12 @@ class BlockSignTest(BitcoinTestFramework):
         self.log.info("Mine some dynamic federation blocks with txns")
         self.mine_blocks(10, True)
 
-        keys = [
-            "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf25", "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf26", "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf26", "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf26"
-        ]
+        # Every node signs with the same -pqminerkey, so keys[1..3] are its public key
+        # and keys[0] is a decoy that must never verify.
+        my_pq_pubkey = "d0a4f0ef0e40cc280434e91bdbd973bf247781f2c9fe7a424bf3a34bd0f6979be417c1b9c7dcc116e62a893d06ff3eb1"
+        decoy_pubkey = "d0a4f0ef0e40cc280434e91bdbd973bf247781f2c9fe7a424bf3a34bd0f6979be417c1b9c7dcc116e62a893d06ff3eb0"
+
+        keys = [decoy_pubkey, my_pq_pubkey, my_pq_pubkey, my_pq_pubkey]
 
         signblockscript = make_signblockscript_shrincs(self.num_keys, self.required_signers, keys)
 
@@ -313,7 +320,7 @@ class BlockSignTest(BitcoinTestFramework):
             
             self.log.info(f"Mined SHRINCS-signed block #{i + 1}")
 
-        self.log.info("SHRINCS-signed blocks was mined!")
+        self.log.info("SHRINCS-signed blocks were mined!")
 
 if __name__ == '__main__':
     BlockSignTest().main()

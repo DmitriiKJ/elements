@@ -518,16 +518,20 @@ crypto_libbitcoin_crypto_base_a_SOURCES = \
   crypto/shrincs/address.cpp \
   crypto/shrincs/address.h \
   crypto/shrincs/constants.h \
-  crypto/shrincs/pors_fp.cpp \
-  crypto/shrincs/pors_fp.h \
+  crypto/shrincs/fors.cpp \
+  crypto/shrincs/fors.h \
+  crypto/shrincs/fxmss.cpp \
+  crypto/shrincs/fxmss.h \
   crypto/shrincs/hash.cpp \
   crypto/shrincs/hash.h \
+  crypto/shrincs/ht.cpp \
+  crypto/shrincs/ht.h \
   crypto/shrincs/shrincs.cpp \
   crypto/shrincs/shrincs.h \
-  crypto/shrincs/uxmss.cpp \
-  crypto/shrincs/uxmss.h \
-  crypto/shrincs/wots_c.cpp \
-  crypto/shrincs/wots_c.h \
+  crypto/shrincs/slh_dsa.cpp \
+  crypto/shrincs/slh_dsa.h \
+  crypto/shrincs/wots.cpp \
+  crypto/shrincs/wots.h \
   crypto/shrincs/xmss.cpp \
   crypto/shrincs/xmss.h
 
