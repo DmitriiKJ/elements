@@ -3,11 +3,6 @@
 
 #include <cstdint>
 
-
-#if !defined(SHRINCS_B) && !defined(SHRINCS_L) && !defined(SHRINCS_B32)
-    #define SHRINCS_B32
-#endif
-
 namespace Parameters
 {
     inline constexpr uint32_t WOTS_C_CHAIN_BITS = 4;

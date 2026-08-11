@@ -3,7 +3,7 @@
 
 #include <cstdint>
 #include <cstring>
-#include <arpa/inet.h>
+#include <compat/endian.h>
 
 namespace Address 
 {

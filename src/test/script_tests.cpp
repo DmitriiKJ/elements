@@ -1899,14 +1899,18 @@ BOOST_AUTO_TEST_CASE(bip341_keypath_test_vectors)
 // of N + 1 elements. Depth 32 leaves room to exercise both small and multi-byte q.
 static const std::vector<unsigned char> SHRINCS_TEST_STRUCTURE = {FXMSS_SHAPE_UNBALANCED, 32};
 
-static void shrincs_make_keypair(unsigned char salt, SHRINCS::SecretKey& out_sk, std::vector<unsigned char>& out_pubkey)
+// A BXMSS tree of the same nominal size, where every counter yields a Merkle path
+// of tree_depth elements instead of a growing one.
+static const std::vector<unsigned char> SHRINCS_TEST_STRUCTURE_BALANCED = {FXMSS_SHAPE_BALANCED, 8};
+
+static void shrincs_make_keypair(unsigned char salt, SHRINCS::SecretKey& out_sk, std::vector<unsigned char>& out_pubkey, const std::vector<unsigned char>& structure = SHRINCS_TEST_STRUCTURE)
 {
     std::vector<unsigned char> seed(3 * N);
     for (size_t i = 0; i < seed.size(); i++) {
         seed[i] = static_cast<unsigned char>(i * 7 + salt);
     }
 
-    BOOST_REQUIRE(SHRINCS::shrincs_keygen(seed.data(), SHRINCS_TEST_STRUCTURE, out_sk));
+    BOOST_REQUIRE(SHRINCS::shrincs_keygen(seed.data(), structure, out_sk));
     BOOST_REQUIRE(SHRINCS::shrincs_pubkey_serialize(out_sk.pk, out_pubkey));
     BOOST_REQUIRE_EQUAL(out_pubkey.size(), SHRINCS::PUBKEY_SIZE);
 }
@@ -2011,6 +2015,80 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
         uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_NONE, 1000, SigVersion::WITNESS_V0, flags, nullptr);
 
         std::vector<unsigned char> sig = shrincs_make_sig(sighash, sk, UINT32_MAX, SIGHASH_NONE);
+        BOOST_CHECK_EQUAL(sig.size(), SPHX_SIGNATURE_SIZE + 1);
+
+        CScriptWitness witness;
+        SHRINCS::shrincs_sig_to_witness(witness, sig, true);
+        BOOST_CHECK_EQUAL(witness.stack.size(), SHRINCS::SL_PART_COUNT + 2);
+        witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
+
+        ScriptError err;
+        bool res = shrincs_eval_witness(txTo, scriptCode, witness, flags, &err);
+
+        BOOST_CHECK_EQUAL(res, true);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_OK);
+    }
+}
+
+BOOST_AUTO_TEST_CASE(shrincs_opcode_balanced_test)
+{
+    SHRINCS::SecretKey sk;
+    std::vector<unsigned char> full_pubkey;
+    shrincs_make_keypair(0x40, sk, full_pubkey, SHRINCS_TEST_STRUCTURE_BALANCED);
+
+    CMutableTransaction txTo;
+    txTo.vin.resize(1);
+    txTo.vout.resize(1);
+    txTo.witness.vtxinwit.resize(1);
+
+    CScript scriptCode;
+    scriptCode << full_pubkey << OP_SHRINCS;
+
+    unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA;
+
+    const unsigned int depth = SHRINCS_TEST_STRUCTURE_BALANCED[1];
+    uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ALL, 1000, SigVersion::WITNESS_V0, flags, nullptr);
+
+    // The public key carries no structure, so q alone tells the interpreter how
+    // many path elements to pop. First, middle and last leaf all give the same q.
+    for (uint32_t state_ctr : {0u, 1u << (depth - 1), (1u << depth) - 1u}) {
+        std::vector<unsigned char> sig = shrincs_make_sig(sighash, sk, state_ctr, SIGHASH_ALL);
+        BOOST_CHECK_EQUAL(sig.size(), N + SHRINCS::SF_LEAF_INDEX_SIZE + SHRINCS::SF_WOTS_PART_SIZE + N * depth + 1);
+
+        CScriptWitness witness;
+        SHRINCS::shrincs_sig_to_witness(witness, sig, true);
+        BOOST_CHECK_EQUAL(witness.stack.size(), 3 + depth + 2);
+        witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
+
+        ScriptError err;
+        bool res = shrincs_eval_witness(txTo, scriptCode, witness, flags, &err);
+
+        BOOST_CHECK_EQUAL(res, true);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_OK);
+    }
+
+    {
+        // Corrupting the first Merkle path element must break the recomputed root.
+        std::vector<unsigned char> sig = shrincs_make_sig(sighash, sk, 0, SIGHASH_ALL);
+        sig[N + SHRINCS::SF_LEAF_INDEX_SIZE + SHRINCS::SF_WOTS_PART_SIZE] ^= 1;
+
+        CScriptWitness witness;
+        SHRINCS::shrincs_sig_to_witness(witness, sig, true);
+        witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
+
+        ScriptError err;
+        bool res = shrincs_eval_witness(txTo, scriptCode, witness, flags, &err);
+
+        BOOST_CHECK_EQUAL(res, false);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_EVAL_FALSE);
+    }
+
+    {
+        // A depth below 32 leaves the counter exhaustible, so the stateless path
+        // stays reachable from a balanced key.
+        uint256 sl_sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_NONE, 1000, SigVersion::WITNESS_V0, flags, nullptr);
+
+        std::vector<unsigned char> sig = shrincs_make_sig(sl_sighash, sk, UINT32_MAX, SIGHASH_NONE);
         BOOST_CHECK_EQUAL(sig.size(), SPHX_SIGNATURE_SIZE + 1);
 
         CScriptWitness witness;

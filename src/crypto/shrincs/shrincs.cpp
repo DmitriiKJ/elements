@@ -157,7 +157,7 @@ namespace SHRINCS {
 
         memcpy(out.data(), r, N);
 
-        uint64_t leaf_index_be = htonll(leaf_index);
+        uint64_t leaf_index_be = htobe64(leaf_index);
         memcpy(out.data() + N, &leaf_index_be, 8);
 
         return FXMSS::fxmss_sign(digest, sk.seed.data(), hash_ctx, leaf_index, leaf_height, sk.structure.data(), out.data() + N + 8);
@@ -187,7 +187,7 @@ namespace SHRINCS {
 
         uint64_t leaf_index_be;
         memcpy(&leaf_index_be, signature.data() + N, 8);
-        uint64_t leaf_index = ntohll(leaf_index_be);
+        uint64_t leaf_index = be64toh(leaf_index_be);
 
         if (leaf_depth < 64 && leaf_index >= (UINT64_C(1) << leaf_depth)) return false;
 
