@@ -599,8 +599,8 @@ bool shrincs_sign_from_stack(std::vector<std::vector<unsigned char> >& stack, bo
     else if (q >= 1 && q <= (int)FXMSS_HEIGHT)
     {
         // Stateful signature
-        // (R leaf_index wots merkle_path_element*q [sighashtype])
-        elems = 3 + (size_t)q;
+        // (indicator R leaf_index wots merkle_path_element*q [sighashtype])
+        elems = 4 + (size_t)q;
     }
     else
     {
@@ -3078,6 +3078,7 @@ bool GenericTransactionSignatureChecker<T>::VerifySHRINCSSignature(const std::ve
     return SHRINCS::shrincs_verify(
         std::vector<unsigned char>(sighash.begin(), sighash.end()),
         std::vector<unsigned char>(sig.begin(), sig.end() - 1),
+        {},
         pk);
 }
 

@@ -13,19 +13,25 @@ namespace SHRINCS {
     inline constexpr uint32_t PUBKEY_SIZE = 3 * N;
     inline constexpr uint32_t SECKEY_SIZE = 5 * N + 2;
 
-    inline constexpr uint32_t SF_LEAF_INDEX_SIZE = 8;
+    inline constexpr uint32_t SF_INDICATOR_SIZE = 1;
+    inline constexpr uint32_t SF_LEAF_INDEX_SIZE_MIN = 1;
+    inline constexpr uint32_t SF_LEAF_INDEX_SIZE_MAX = 8;
     inline constexpr uint32_t SF_WOTS_PART_SIZE = 2 + WOTS_C_CHAINS_SIZE;
-    inline constexpr uint32_t SF_SIGNATURE_SIZE_MIN = N + SF_LEAF_INDEX_SIZE + FXMSS_SIGNATURE_SIZE_MIN;
-    inline constexpr uint32_t SF_SIGNATURE_SIZE_MAX = N + SF_LEAF_INDEX_SIZE + FXMSS_SIGNATURE_SIZE_MAX;
+    inline constexpr uint32_t SF_SIGNATURE_SIZE_MIN = SF_INDICATOR_SIZE + N + SF_LEAF_INDEX_SIZE_MIN + FXMSS_SIGNATURE_SIZE_MIN;
+    inline constexpr uint32_t SF_SIGNATURE_SIZE_MAX = SF_INDICATOR_SIZE + N + SF_LEAF_INDEX_SIZE_MAX + FXMSS_SIGNATURE_SIZE_MAX;
+    inline constexpr uint32_t SL_SIGNATURE_SIZE = SF_INDICATOR_SIZE + SPHX_SIGNATURE_SIZE;
+
+    inline constexpr uint32_t sf_leaf_index_size(uint32_t leaf_depth)
+    {
+        return ((leaf_depth < 64 ? leaf_depth : 64) + 7) >> 3;
+    }
 
     inline constexpr uint32_t SL_FORS_PART_COUNT = SPHX_FORS_COUNT;
     inline constexpr uint32_t SL_FORS_PART_SIZE = FORS_SIGNATURE_SIZE / SL_FORS_PART_COUNT;
     inline constexpr uint32_t SL_HT_PART_COUNT = SPHX_LAYER_COUNT << 1;
     inline constexpr uint32_t SL_HT_PART_SIZE = HYPERTREE_SIGNATURE_SIZE / SL_HT_PART_COUNT;
-    inline constexpr uint32_t SL_PART_COUNT = 1 + SL_FORS_PART_COUNT + SL_HT_PART_COUNT;
+    inline constexpr uint32_t SL_PART_COUNT = 2 + SL_FORS_PART_COUNT + SL_HT_PART_COUNT;
 
-    // q distinguishes the two paths on the stack. A stateful q counts the Merkle
-    // path elements, which reaches FXMSS_HEIGHT, so the stateless marker sits above it.
     inline constexpr int64_t Q_EMPTY = 0;
     inline constexpr int64_t Q_STATELESS = FXMSS_HEIGHT + 1;
 
@@ -58,10 +64,10 @@ namespace SHRINCS {
 
     void generate_random_bytes(unsigned char* buffer, size_t length);
 
-    bool shrincs_keygen(unsigned char* bytes, const std::vector<unsigned char>& structure, SecretKey& out_sk);
-    bool shrincs_sf_leaf_select(const std::vector<unsigned char>& structure, uint32_t state_ctr, uint64_t* out_lr, uint8_t* out_bt);
-    bool shrincs_sign(const std::vector<unsigned char>& message, const SecretKey& sk, uint32_t state_ctr, const std::vector<unsigned char>& opt_rand, std::vector<unsigned char>& out);
-    bool shrincs_verify(const std::vector<unsigned char>& message, const std::vector<unsigned char>& signature, const PublicKey& pk);
+    bool shrincs_keygen(const std::vector<unsigned char>& seed, const std::vector<unsigned char>& structure, SecretKey& out_sk);
+    bool shrincs_sf_leaf_select(const std::vector<unsigned char>& structure, const uint64_t* state_ctr, uint64_t* out_lr, uint8_t* out_bt);
+    bool shrincs_sign(const std::vector<unsigned char>& message, const std::vector<unsigned char>& ctx, const SecretKey& sk, const uint64_t* state_ctr, const std::vector<unsigned char>& opt_rand, std::vector<unsigned char>& out);
+    bool shrincs_verify(const std::vector<unsigned char>& message, const std::vector<unsigned char>& signature, const std::vector<unsigned char>& ctx, const PublicKey& pk);
 
     bool shrincs_pubkey_serialize(const PublicKey& pk, std::vector<unsigned char>& out);
     bool shrincs_pubkey_parse(const std::vector<unsigned char>& bytes, PublicKey& out_pk);

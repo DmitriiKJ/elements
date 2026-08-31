@@ -183,8 +183,8 @@ namespace HASH
         CSHA256 ctx_e;
         sha256_add_to_ctx(ctx_e, r, N);
         sha256_add_to_ctx(ctx_e, pk_seed, N);
-        sha256_add_to_ctx(ctx_e, adrs, 9);
         sha256_add_to_ctx(ctx_e, tmp, 32);
+        sha256_add_to_ctx(ctx_e, adrs, 9);
         sha256_finalize_32(ctx_e, out);
     }
 }

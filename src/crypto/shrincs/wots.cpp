@@ -120,16 +120,19 @@ namespace WOTS
     {
         unsigned char wots_sk[WOTS_C_CHAIN_COUNT][N];
 
+        unsigned char sf_structure[2] = {adrs[10], adrs[11]};
+
         unsigned char sk[N];
-        set_10_14(adrs, 0);
         for (uint32_t i = 0; i < WOTS_C_CHAIN_COUNT; i++)
         {
             setType(adrs, SF_WOTS_C_PRF);
+            memcpy(adrs + 10, sf_structure, 2);
             set_14_18(adrs, i);
             set_18_22(adrs, 0);
 
             prf(hash_ctx, sk_seed, adrs, sk);
             setType(adrs, SF_WOTS_C_HASH);
+            set_10_14(adrs, 0);
             chain(sk, 0, (1 << WOTS_C_CHAIN_BITS) - 1, hash_ctx, adrs, wots_sk[i]);
         }
         
@@ -185,6 +188,8 @@ namespace WOTS
 
     bool wots_c_sign(const unsigned char* message, const unsigned char* sk_seed, CSHA256& hash_ctx, unsigned char* adrs, unsigned char* out)
     {
+        unsigned char sf_structure[2] = {adrs[10], adrs[11]};
+
         uint32_t indexes[WOTS_C_CHAIN_COUNT];
         bool success;
         uint32_t ctr = wots_c_grind(message, hash_ctx, adrs, indexes, &success);
@@ -198,14 +203,15 @@ namespace WOTS
         out[1] = static_cast<unsigned char>(ctr);
 
         unsigned char sk[N];
-        set_10_14(adrs, 0);
         for (uint32_t i = 0; i < WOTS_C_CHAIN_COUNT; i++)
         {
             setType(adrs, SF_WOTS_C_PRF);
+            memcpy(adrs + 10, sf_structure, 2);
             set_14_18(adrs, i);
             set_18_22(adrs, 0);
             prf(hash_ctx, sk_seed, adrs, sk);
             setType(adrs, SF_WOTS_C_HASH);
+            set_10_14(adrs, 0);
             chain(sk, 0, indexes[i], hash_ctx, adrs, out + N * i + 2);
         }
 

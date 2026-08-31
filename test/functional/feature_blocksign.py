@@ -97,7 +97,7 @@ class BlockSignTest(BitcoinTestFramework):
         self.witnessScript = signblockscript # post-dynafed this becomes witnessScript
 
         # 82-byte SHRINCS secret key: sk_seed || sk_prf || pk_seed || sl_root || sf_structure || sf_root
-        my_pq_key = "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf26d0a4f0ef0e40cc280434e91bdbd973bf247781f2c9fe7a424bf3a34bd0f6979b0010e417c1b9c7dcc116e62a893d06ff3eb1"
+        my_pq_key = "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf26d0a4f0ef0e40cc280434e91bdbd973bf247781f2c9fe7a424bf3a34bd0f6979b0010d60ff0ea5ec937a5c2467a7bafef8384"
         self.extra_args = [[
             "-signblockscript={}".format(signblockscript),
             "-con_max_block_sig_size={}".format(self.required_signers*74+self.num_nodes*33),
@@ -245,8 +245,8 @@ class BlockSignTest(BitcoinTestFramework):
 
         # Every node signs with the same -pqminerkey, so keys[1..3] are its public key
         # and keys[0] is a decoy that must never verify.
-        my_pq_pubkey = "d0a4f0ef0e40cc280434e91bdbd973bf247781f2c9fe7a424bf3a34bd0f6979be417c1b9c7dcc116e62a893d06ff3eb1"
-        decoy_pubkey = "d0a4f0ef0e40cc280434e91bdbd973bf247781f2c9fe7a424bf3a34bd0f6979be417c1b9c7dcc116e62a893d06ff3eb0"
+        my_pq_pubkey = "d0a4f0ef0e40cc280434e91bdbd973bf247781f2c9fe7a424bf3a34bd0f6979bd60ff0ea5ec937a5c2467a7bafef8384"
+        decoy_pubkey = "d0a4f0ef0e40cc280434e91bdbd973bf247781f2c9fe7a424bf3a34bd0f6979bd60ff0ea5ec937a5c2467a7bafef8385"
 
         keys = [decoy_pubkey, my_pq_pubkey, my_pq_pubkey, my_pq_pubkey]
 

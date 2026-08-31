@@ -19,6 +19,7 @@ namespace FXMSS
         {
             setLayerAddress(adrs, node_height);
             setTreeAddress(adrs, node_index);
+            memcpy(adrs + 10, structure, 2);
             wots_c_pk_gen(sk_seed, hash_ctx, adrs, out);
             return true;
         }
@@ -67,6 +68,7 @@ namespace FXMSS
         unsigned char adrs[22] = {0};
         setLayerAddress(adrs, leaf_height);
         setTreeAddress(adrs, leaf_index);
+        memcpy(adrs + 10, structure, 2);
         if (!wots_c_sign(message, sk_seed, hash_ctx, adrs, out)) return false;
 
         uint64_t sibling_index;

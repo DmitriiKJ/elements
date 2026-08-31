@@ -172,13 +172,14 @@ RPCHelpMan signblock()
 
         uint256 sighash = block.GetHash();
 
-        // Blocksigners only use the stateless path, which an exhausted state counter forces.
+        // Blocksigners only use the stateless path, which a null counter selects
+        // outright, whatever tree structure the key carries.
         std::vector<unsigned char> pq_sig;
-        if (!SHRINCS::shrincs_sign(std::vector<unsigned char>(sighash.begin(), sighash.end()), sk, UINT32_MAX, {}, pq_sig)) {
+        if (!SHRINCS::shrincs_sign(std::vector<unsigned char>(sighash.begin(), sighash.end()), {}, sk, NULL, {}, pq_sig)) {
             throw JSONRPCError(RPC_VERIFY_ERROR, "Could not create the SHRINCS block signature.");
         }
-        if (pq_sig.size() != SPHX_SIGNATURE_SIZE) {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "PQ miner key does not yield a stateless signature; check its tree structure.");
+        if (pq_sig.size() != SHRINCS::SL_SIGNATURE_SIZE) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "PQ miner key did not yield a stateless signature.");
         }
 
         std::vector<unsigned char> pubkey;
