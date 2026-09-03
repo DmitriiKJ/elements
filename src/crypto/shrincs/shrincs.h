@@ -30,7 +30,8 @@ namespace SHRINCS {
     inline constexpr uint32_t SL_FORS_PART_SIZE = FORS_SIGNATURE_SIZE / SL_FORS_PART_COUNT;
     inline constexpr uint32_t SL_HT_PART_COUNT = SPHX_LAYER_COUNT << 1;
     inline constexpr uint32_t SL_HT_PART_SIZE = HYPERTREE_SIGNATURE_SIZE / SL_HT_PART_COUNT;
-    inline constexpr uint32_t SL_PART_COUNT = 2 + SL_FORS_PART_COUNT + SL_HT_PART_COUNT;
+    inline constexpr uint32_t SL_PART_COUNT = 1 + SL_FORS_PART_COUNT + SL_HT_PART_COUNT;
+    inline constexpr uint32_t SF_PART_COUNT_BASE = 3;
 
     inline constexpr int64_t Q_EMPTY = 0;
     inline constexpr int64_t Q_STATELESS = FXMSS_HEIGHT + 1;

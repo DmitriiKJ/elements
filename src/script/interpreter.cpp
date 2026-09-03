@@ -590,17 +590,20 @@ bool shrincs_sign_from_stack(std::vector<std::vector<unsigned char> >& stack, bo
         return true;
 
     size_t elems;
+    unsigned char indicator;
     if (q == SHRINCS::Q_STATELESS)
     {
         // Stateless signature
         // (R fors_part*10 ht_part*10 [sighashtype])
         elems = SHRINCS::SL_PART_COUNT;
+        indicator = (unsigned char)FXMSS_HEIGHT;
     }
     else if (q >= 1 && q <= (int)FXMSS_HEIGHT)
     {
         // Stateful signature
-        // (indicator R leaf_index wots merkle_path_element*q [sighashtype])
-        elems = 4 + (size_t)q;
+        // (R leaf_index wots merkle_path_element*q [sighashtype])
+        elems = SHRINCS::SF_PART_COUNT_BASE + (size_t)q;
+        indicator = (unsigned char)(FXMSS_HEIGHT - q);
     }
     else
     {
@@ -624,9 +627,10 @@ bool shrincs_sign_from_stack(std::vector<std::vector<unsigned char> >& stack, bo
         reversed_parts.push_back(sign_part);
     }
 
-    sig_out.resize(total_size);
+    sig_out.resize(SHRINCS::SF_INDICATOR_SIZE + total_size);
+    sig_out[0] = indicator;
 
-    size_t current_offset = total_size;
+    size_t current_offset = SHRINCS::SF_INDICATOR_SIZE + total_size;
     for (const auto& part : reversed_parts) {
         current_offset -= part.size();
 

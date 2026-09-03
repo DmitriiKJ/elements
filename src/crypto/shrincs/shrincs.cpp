@@ -257,7 +257,9 @@ namespace SHRINCS {
             offset += size;
         };
 
-        push(SF_INDICATOR_SIZE);
+        // The indicator is skipped, not pushed: the verifier rederives it from q. Advancing the
+        // offset past it keeps every subsequent part aligned with the serialized signature.
+        offset += SF_INDICATOR_SIZE;
 
         if (body_size == SL_SIGNATURE_SIZE)
         {

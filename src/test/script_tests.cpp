@@ -2000,7 +2000,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
 
         CScriptWitness witness;
         SHRINCS::shrincs_sig_to_witness(witness, sig, true);
-        BOOST_CHECK_EQUAL(witness.stack.size(), 4 + 25 + 2);
+        BOOST_CHECK_EQUAL(witness.stack.size(), SHRINCS::SF_PART_COUNT_BASE + 25 + 2);
         witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
 
         ScriptError err;
@@ -2056,7 +2056,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_balanced_test)
 
         CScriptWitness witness;
         SHRINCS::shrincs_sig_to_witness(witness, sig, true);
-        BOOST_CHECK_EQUAL(witness.stack.size(), 4 + depth + 2);
+        BOOST_CHECK_EQUAL(witness.stack.size(), SHRINCS::SF_PART_COUNT_BASE + depth + 2);
         witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
 
         ScriptError err;
