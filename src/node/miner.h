@@ -106,7 +106,10 @@ struct CompareTxIterByAncestorCount {
 };
 
 
-struct CTxMemPoolModifiedEntry_Indices final : boost::multi_index::indexed_by<
+// Note: this must stay a type alias rather than a derived struct. As of
+// Boost 1.89.0, indexed_by is an Mp11 list that is only forward-declared,
+// so a type deriving from it is not a usable index specifier list.
+using CTxMemPoolModifiedEntry_Indices = boost::multi_index::indexed_by<
     boost::multi_index::ordered_unique<
         modifiedentry_iter,
         CompareCTxMemPoolIter
@@ -124,8 +127,7 @@ struct CTxMemPoolModifiedEntry_Indices final : boost::multi_index::indexed_by<
         boost::multi_index::identity<CTxMemPoolModifiedEntry>,
         CompareTxMemPoolEntryByConfidentialFee
     >
->
-{};
+>;
 
 typedef boost::multi_index_container<
     CTxMemPoolModifiedEntry,

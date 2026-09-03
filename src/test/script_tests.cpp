@@ -2068,7 +2068,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_malformed_test)
     }
 }
 
-BOOST_AUTO_TEST_CASE(multishrincs_opcode_test)
+BOOST_AUTO_TEST_CASE(shrincsadd_opcode_test)
 {
     SHRINCS::SecretKey sk1, sk2;
     std::vector<unsigned char> full_pubkey1, full_pubkey2;

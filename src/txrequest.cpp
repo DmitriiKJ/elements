@@ -212,12 +212,14 @@ struct ByTimeViewExtractor
     }
 };
 
-struct Announcement_Indices final : boost::multi_index::indexed_by<
+// Note: this must stay a type alias rather than a derived struct. As of
+// Boost 1.89.0, indexed_by is an Mp11 list that is only forward-declared,
+// so a type deriving from it is not a usable index specifier list.
+using Announcement_Indices = boost::multi_index::indexed_by<
     boost::multi_index::ordered_unique<boost::multi_index::tag<ByPeer>, ByPeerViewExtractor>,
     boost::multi_index::ordered_non_unique<boost::multi_index::tag<ByTxHash>, ByTxHashViewExtractor>,
     boost::multi_index::ordered_non_unique<boost::multi_index::tag<ByTime>, ByTimeViewExtractor>
->
-{};
+>;
 
 /** Data type for the main data structure (Announcement objects with ByPeer/ByTxHash/ByTime indexes). */
 using Index = boost::multi_index_container<
