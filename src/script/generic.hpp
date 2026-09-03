@@ -10,7 +10,7 @@
 #include <script/interpreter.h>
 #include <script/sign.h>
 #include <script/signingprovider.h>
-
+#include <crypto/shrincs/shrincs.h>
 
 class SimpleSignatureChecker : public BaseSignatureChecker
 {
@@ -37,6 +37,24 @@ public:
             }
         }
         return pubkey.Verify(hash, vchSig);
+    }
+
+    bool CheckSHRINCSSignature(const std::vector<unsigned char>& sig, const std::vector<unsigned char>& pubkey, const CScript& scriptCode, SigVersion sigversion, ScriptExecutionData& execdata, unsigned int flags) const override
+    {
+        // Blocksigners only use stateless signature path
+        if (sig.size() != SHRINCS::SL_SIGNATURE_SIZE)
+            return false;
+
+        SHRINCS::PublicKey pk;
+        if (!SHRINCS::shrincs_pubkey_parse(pubkey, pk))
+            return false;
+
+        return SHRINCS::shrincs_verify(std::vector<unsigned char>(hash.begin(), hash.end()), sig, {}, pk);
+    }
+
+    virtual bool isBlockChecker() const override
+    {
+        return true;
     }
 };
 

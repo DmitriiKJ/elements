@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import codecs
+import hashlib
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (assert_raises_rpc_error, assert_equal)
@@ -32,6 +33,22 @@ def make_signblockscript(num_nodes, required_signers, keys):
         script += codecs.encode(k.get_pubkey().get_bytes(), 'hex_codec').decode("utf-8")
     script += "{}".format(50 + num_nodes) # num keys
     script += "ae" # OP_CHECKMULTISIG
+    return script
+
+# A SHRINCS public key is pk_seed || sl_root || sf_root, so it needs a 48-byte push.
+SHRINCS_PUBKEY_PUSH = "30"
+
+def make_signblockscript_shrincs(num_nodes, required_signers, keys):
+    assert num_nodes >= required_signers
+    script = SHRINCS_PUBKEY_PUSH
+    script += keys[0]
+    script += "b3"
+    for i in range(1, num_nodes):
+        script += SHRINCS_PUBKEY_PUSH
+        script += keys[i]
+        script += "b4"
+    script += "{}".format(50 + required_signers)
+    script += "9c" # OP_NUMEQUAL
     return script
 
 class BlockSignTest(BitcoinTestFramework):
@@ -81,12 +98,16 @@ class BlockSignTest(BitcoinTestFramework):
         self.init_keys(self.num_nodes-1) # Last node cannot sign and is connected to all via p2p
         signblockscript = make_signblockscript(self.num_keys, self.required_signers, self.keys)
         self.witnessScript = signblockscript # post-dynafed this becomes witnessScript
+
+        # 82-byte SHRINCS secret key: sk_seed || sk_prf || pk_seed || sl_root || sf_structure || sf_root
+        my_pq_key = "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf26d0a4f0ef0e40cc280434e91bdbd973bf247781f2c9fe7a424bf3a34bd0f6979b0010d60ff0ea5ec937a5c2467a7bafef8384"
         self.extra_args = [[
             "-signblockscript={}".format(signblockscript),
             "-con_max_block_sig_size={}".format(self.required_signers*74+self.num_nodes*33),
             "-anyonecanspendaremine=1",
             "-evbparams=dynafed:0:::",
             "-con_dyna_deploy_signal=1",
+            f"-pqminerkey={my_pq_key}",
         ]] * self.num_nodes
 
     def setup_network(self):
@@ -265,6 +286,85 @@ class BlockSignTest(BitcoinTestFramework):
 
         self.log.info("Mine some dynamic federation blocks with txns")
         self.mine_blocks(10, True)
+
+        # Every node signs with the same -pqminerkey, so keys[1..3] are its public key
+        # and keys[0] is a decoy that must never verify.
+        my_pq_pubkey = "d0a4f0ef0e40cc280434e91bdbd973bf247781f2c9fe7a424bf3a34bd0f6979bd60ff0ea5ec937a5c2467a7bafef8384"
+        decoy_pubkey = "d0a4f0ef0e40cc280434e91bdbd973bf247781f2c9fe7a424bf3a34bd0f6979bd60ff0ea5ec937a5c2467a7bafef8385"
+
+        keys = [decoy_pubkey, my_pq_pubkey, my_pq_pubkey, my_pq_pubkey]
+
+        signblockscript = make_signblockscript_shrincs(self.num_keys, self.required_signers, keys)
+
+        script_hash = hashlib.sha256(bytes.fromhex(signblockscript)).hexdigest()
+        p2wsh_shrincs_script = "0020" + script_hash
+
+        current_fedpeg = self.nodes[0].getsidechaininfo()["current_fedpegscripts"][0]
+        chain_info = self.nodes[0].getblockchaininfo()
+
+        new_fed_params = {
+            "signblockscript": p2wsh_shrincs_script,
+            "max_block_witness": 100000,
+            "fedpegscript": current_fedpeg,
+            "extension_space": chain_info["extension_space"]
+        }
+
+        cur_height = self.nodes[0].getblockcount()
+        blocks_to_epoch = 10 - (cur_height % 10)
+        if blocks_to_epoch != 10:
+            self.log.info(f"Mining {blocks_to_epoch} blocks to reach epoch boundary...")
+            self.mine_blocks(blocks_to_epoch, False)
+
+        cur_height = self.nodes[0].getblockcount()
+
+        while True:
+            prop_block = self.nodes[0].getnewblockhex(0, new_fed_params)
+
+            sigs = []
+            for i in range(self.required_signers):
+                sigs += self.nodes[i].signblock(prop_block, self.witnessScript)
+            combined = self.nodes[0].combineblocksigs(prop_block, sigs, self.witnessScript)
+
+            for i in range(self.num_keys):
+                self.nodes[i].submitblock(combined["hex"])
+
+            self.sync_all()
+
+            current_signblock = self.nodes[0].getblockchaininfo()['current_signblock_hex']
+            if current_signblock == p2wsh_shrincs_script:
+                break
+
+        self.log.info("Proposal blocks mined.")
+
+        self.sync_all()
+
+        self.log.info("Mining SHRINCS-signed blocks!")
+
+        for i in range(3):
+            block_hex = self.nodes[0].getnewblockhex()
+
+            pq_sigs = []
+            for j in range(self.required_signers):
+                pq_sigs += self.nodes[j].signblock(block_hex, signblockscript, True)
+
+            for j in range(self.num_keys - self.required_signers):
+                pq_sigs.append({
+                    "pubkey": keys[self.required_signers + j],
+                    "sig": ""
+                })
+
+            pq_combined = self.nodes[0].combineblocksigs(block_hex, pq_sigs, signblockscript, True)
+            assert(pq_combined["complete"])
+
+            for j in range(self.num_keys):
+                res = self.nodes[j].submitblock(pq_combined["hex"])
+
+                if res is not None:
+                    raise AssertionError(f"SHRINCS block REJECTED by consensus: {res}")
+
+            self.log.info(f"Mined SHRINCS-signed block #{i + 1}")
+
+        self.log.info("SHRINCS-signed blocks were mined!")
 
 if __name__ == '__main__':
     BlockSignTest(__file__).main()
