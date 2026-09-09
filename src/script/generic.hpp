@@ -39,8 +39,9 @@ public:
         return pubkey.Verify(hash, vchSig);
     }
 
-    bool CheckSHRINCSSignature(const std::vector<unsigned char>& sig, const std::vector<unsigned char>& pubkey, const CScript& scriptCode, SigVersion sigversion, ScriptExecutionData& execdata, unsigned int flags) const override
+    bool CheckSHRINCSSignature(const std::vector<unsigned char>& sig, const std::vector<unsigned char>& pubkey, int hashtype, const CScript& scriptCode, SigVersion sigversion, ScriptExecutionData& execdata, unsigned int flags) const override
     {
+        // The block hash is the message, so there is no sighash byte and hashtype is unused.
         // Blocksigners only use stateless signature path
         if (sig.size() != SHRINCS::SL_SIGNATURE_SIZE)
             return false;

@@ -1,5 +1,7 @@
 #include "shrincs.h"
 
+#include <algorithm>
+
 namespace SHRINCS {
     PublicKey::PublicKey() : seed(N), sl_root(N), sf_root(N) {}
 
@@ -249,40 +251,21 @@ namespace SHRINCS {
             return;
         }
 
-        size_t body_size = sig.size() - (sighash_type_ext ? 1 : 0);
-        size_t offset = 0;
+        // The indicator is not pushed: the verifier rederives it from q. The rest is cut into
+        // parts of SIG_PART_SIZE bytes, the last one carrying whatever remains, and the cut
+        // points follow nothing in the structure of the signature.
+        const size_t end = sig.size() - (sighash_type_ext ? 1 : 0);
+        const unsigned char indicator = sig[0];
 
-        auto push = [&](size_t size) {
-            witness.stack.push_back(std::vector<unsigned char>(sig.begin() + offset, sig.begin() + offset + size));
-            offset += size;
-        };
-
-        // The indicator is skipped, not pushed: the verifier rederives it from q. Advancing the
-        // offset past it keeps every subsequent part aligned with the serialized signature.
-        offset += SF_INDICATOR_SIZE;
-
-        if (body_size == SL_SIGNATURE_SIZE)
+        for (size_t offset = SF_INDICATOR_SIZE; offset < end; offset += SIG_PART_SIZE)
         {
-            push(N);
-
-            for (uint32_t i = 0; i < SL_FORS_PART_COUNT; i++) push(SL_FORS_PART_SIZE);
-            for (uint32_t i = 0; i < SL_HT_PART_COUNT; i++) push(SL_HT_PART_SIZE);
-
-            if (sighash_type_ext) witness.stack.push_back(std::vector<unsigned char>(1, sig.back()));
-
-            witness.stack.push_back(CScriptNum(Q_STATELESS).getvch());
-            return;
+            const size_t part_size = std::min<size_t>(SIG_PART_SIZE, end - offset);
+            witness.stack.push_back(std::vector<unsigned char>(sig.begin() + offset, sig.begin() + offset + part_size));
         }
-
-        push(N);
-        push(sf_leaf_index_size(FXMSS_HEIGHT - sig[0]));
-        push(SF_WOTS_PART_SIZE);
-
-        int64_t mpl = (body_size - offset) / N;
-        for (int64_t i = 0; i < mpl; i++) push(N);
 
         if (sighash_type_ext) witness.stack.push_back(std::vector<unsigned char>(1, sig.back()));
 
-        witness.stack.push_back(CScriptNum(mpl).getvch());
+        const int64_t q = indicator == (unsigned char)FXMSS_HEIGHT ? Q_STATELESS : (int64_t)(FXMSS_HEIGHT - indicator);
+        witness.stack.push_back(CScriptNum(q).getvch());
     }
 }

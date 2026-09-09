@@ -26,21 +26,33 @@ namespace SHRINCS {
         return ((leaf_depth < 64 ? leaf_depth : 64) + 7) >> 3;
     }
 
-    inline constexpr uint32_t SL_FORS_PART_COUNT = SPHX_FORS_COUNT;
-    inline constexpr uint32_t SL_FORS_PART_SIZE = FORS_SIGNATURE_SIZE / SL_FORS_PART_COUNT;
-    inline constexpr uint32_t SL_HT_PART_COUNT = SPHX_LAYER_COUNT << 1;
-    inline constexpr uint32_t SL_HT_PART_SIZE = HYPERTREE_SIGNATURE_SIZE / SL_HT_PART_COUNT;
-    inline constexpr uint32_t SL_PART_COUNT = 1 + SL_FORS_PART_COUNT + SL_HT_PART_COUNT;
-    inline constexpr uint32_t SF_PART_COUNT_BASE = 3;
+    // The signature is cut into parts of this size, the last one carrying the remainder.
+    // 80 is MAX_STANDARD_P2WSH_STACK_ITEM_SIZE and MAX_STANDARD_TAPSCRIPT_STACK_ITEM_SIZE,
+    // the relay policy cap, which is stricter than MAX_SCRIPT_ELEMENT_SIZE.
+    inline constexpr uint32_t SIG_PART_SIZE = 80;
+
+    // Length of a signature as serialized, less its leading indicator byte.
+    inline constexpr uint32_t sf_body_size(uint32_t leaf_depth)
+    {
+        return N + sf_leaf_index_size(leaf_depth) + SF_WOTS_PART_SIZE + N * leaf_depth;
+    }
+
+    inline constexpr uint32_t SL_BODY_SIZE = SPHX_SIGNATURE_SIZE;
+
+    inline constexpr uint32_t sig_part_count(uint32_t body_size)
+    {
+        return (body_size + SIG_PART_SIZE - 1) / SIG_PART_SIZE;
+    }
+
+    inline constexpr uint32_t SL_PART_COUNT = sig_part_count(SL_BODY_SIZE);
 
     inline constexpr int64_t Q_EMPTY = 0;
     inline constexpr int64_t Q_STATELESS = FXMSS_HEIGHT + 1;
 
-    static_assert(SL_FORS_PART_SIZE <= MAX_SCRIPT_ELEMENT_SIZE);
-    static_assert(SL_HT_PART_SIZE <= MAX_SCRIPT_ELEMENT_SIZE);
-    static_assert(SF_WOTS_PART_SIZE <= MAX_SCRIPT_ELEMENT_SIZE);
-    static_assert(SL_FORS_PART_SIZE * SL_FORS_PART_COUNT == FORS_SIGNATURE_SIZE);
-    static_assert(SL_HT_PART_SIZE * SL_HT_PART_COUNT == HYPERTREE_SIGNATURE_SIZE);
+    static_assert(SIG_PART_SIZE <= MAX_SCRIPT_ELEMENT_SIZE);
+    static_assert(SF_INDICATOR_SIZE + SL_BODY_SIZE == SL_SIGNATURE_SIZE);
+    static_assert(SF_INDICATOR_SIZE + sf_body_size(1) == SF_SIGNATURE_SIZE_MIN);
+    static_assert(SF_INDICATOR_SIZE + sf_body_size(FXMSS_HEIGHT) == SF_SIGNATURE_SIZE_MAX);
 
     class PublicKey
     {

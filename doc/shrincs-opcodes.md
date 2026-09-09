@@ -6,13 +6,15 @@ This document describes how to use the OP_SHRINCS (0xb3) and the OP_SHRINCSADD (
 
 Unlike ECDSA and Schnorr signatures which are small (less than 520 bytes) and can be pushed to the stack as a single element, SHRINCS has to be split into parts.
 
+This document follows the layout fixed by the ELIP for `OP_SHRINCS` and `OP_SHRINCSADD`.
+
 ### Public keys
 
-A SHRINCS public key is 48 bytes: `pk_seed || sl_root || sf_root`, so it is pushed with a 48-byte push (`0x30`).
+A SHRINCS public key is 48 bytes: `pk_seed || sl_root || sf_root`, so it is pushed with a 48-byte push (`0x30`). An element of any other length fails the script with `SCRIPT_ERR_PUBKEYTYPE`, before the signature below it is parsed.
 
 ### Signature structure
 
-The topmost stack element `q` selects the layout and is the only element the interpreter interprets numerically. It is a minimally encoded `CScriptNum`:
+The topmost stack element `q` selects the layout and is the only element the interpreter interprets numerically. Its encoding must be minimal and at most 2 bytes **whatever script verification flags are set**; any other encoding fails the script with `SCRIPT_ERR_MINIMALDATA`. It is read as a `CScriptNum`:
 
 | `q` | Meaning |
 | :--- | :--- |
@@ -22,48 +24,69 @@ The topmost stack element `q` selects the layout and is the only element the int
 
 Since a stateful Merkle path reaches `FXMSS_HEIGHT` = 255 elements, the stateless marker sits one above it. Note `q = 256` encodes as the two bytes `0x00 0x01`.
 
-**Stateless signature stack layout:**
+**How the signature is split:**
 
-The signature is `indicator || R || FORS signature || hypertree signature` = 1 + 16 + 2240 + 3520 = 5777 bytes. The leading `indicator` byte is not pushed — the interpreter rederives it from `q` (see below). Neither the FORS nor the hypertree part fits in a single stack element, so both are split along their internal boundaries: one element per FORS tree, and two elements per hypertree layer.
+The signature is cut into parts of **80 bytes**, the last part carrying whatever remains. The cut points follow nothing in the structure of the signature: a part may begin in the middle of a Merkle path node and end in the middle of the next. The interpreter concatenates the parts back into one byte string before it parses anything.
+
+Two separate limits set that size. `MAX_SCRIPT_ELEMENT_SIZE` = 520 is the consensus limit that makes a split necessary at all, but relay policy caps a standard witness element at 80 bytes on both witness spending paths (`MAX_STANDARD_P2WSH_STACK_ITEM_SIZE` and `MAX_STANDARD_TAPSCRIPT_STACK_ITEM_SIZE`), so a signature split only to the consensus limit is valid but non-relayable. Cutting at 80 satisfies both at once.
+
+Both the number of parts and every individual length follow from `q` alone:
+
+```text
+ L = 530 + index_size + 16 * q     stateful, index_size = ceildiv(min(q, 64), 8)
+ L = SPHX_SIGNATURE_SIZE = 5776    stateless
+ N = ceildiv(L, 80)
+```
+
+where `L` is the length of the signature as the SHRINCS specification serializes it, less its leading indicator byte. The first `N - 1` parts are exactly 80 bytes and the last is `L - 80 * (N - 1)`, between 1 and 80. Any other length fails the script with `SCRIPT_ERR_SHRINCS_SIG_SIZE`.
+
+**Stack layout:**
+
+The layout is the same for both signature types; only `L`, and with it `N`, differ. From top to bottom:
 
 | Position | Element | Size |
 | :---: | :--- | :--- |
-| `[-23]` | `R` | 16 bytes |
-| `[-22..-13]` | `fors_part` (x10) | 224 bytes per part (one FORS tree) |
-| `[-12..-3]` | `ht_part` (x10) | 352 bytes per part (half a hypertree layer) |
+| `[-1]` | `q` | 1–2 bytes |
 | `[-2]` | `sighash type` (optional) | 1 byte |
-| `[-1]` | `q` | `256` |
+| `[-(2 + N)..-3]` | `part_1 .. part_N` | 80 bytes each, except `part_N` |
 
-Positions above assume the sighash byte is present; without it everything below `[-1]` shifts up by one.
+Positions above assume the sighash byte is present; without it everything below `[-1]` shifts up by one. The parts are pushed in index order, so `part_1` sits deepest and `part_N` carries the remainder.
 
-So, in a script, the required push order is as follows: `<R> <fp1> ... <fp10> <hp1> ... <hp10> [<sighash_type>] <256>`
+| Signature | `L` | `N` | Last part | Stack elements |
+| :--- | ---: | ---: | ---: | ---: |
+| Stateful, `q = 1` | 547 | 7 | 67 bytes | 9 |
+| Stateful, `q = 255` | 4618 | 58 | 58 bytes | 60 |
+| Stateless | 5776 | 73 | 16 bytes | 75 |
+
+The element count includes `q` and the SIGHASH byte; a block signature carries no SIGHASH byte and occupies one fewer.
+
+So, in a script, the required push order is: `<part_1> ... <part_N> [<sighash_type>] <q>`
 
 > [!IMPORTANT]
 > **Block Signatures vs. SIGHASH Bytes**
-> Standard UTXO transaction signatures append a 1-byte SIGHASH flag (e.g., `0x01` for `SIGHASH_ALL`) to the signature. However, **Block Signatures (Dynafed) DO NOT use a SIGHASH byte**.
+> Standard UTXO transaction signatures carry a 1-byte SIGHASH flag (e.g., `0x01` for `SIGHASH_ALL`) as a stack element of its own, just below `q`. However, **Block Signatures (Dynafed) DO NOT use a SIGHASH byte**.
 >
 > Block signatures additionally must always take the stateless path.
 
-**Stateful signature stack layout:**
+**What the parts concatenate back into:**
 
-The signature is `indicator || R || leaf_index || grinding counter || WOTS+C chains || Merkle path`. As in the stateless case, the leading `indicator` byte is not pushed. The leaf's depth in the FXMSS tree equals the number of Merkle path elements, so `q` fully determines the signature length: 1 + 16 + `index_size` + 2 + 512 + 16·`q`, where `index_size = ceildiv(min(q, 64), 8)` is 1 to 8 bytes. That gives 548 bytes at `q = 1` up to 4619 bytes at `q = 255`.
+The parts concatenated bottom to top are the SHRINCS signature exactly as the specification serializes it, less the leading indicator byte.
 
-| Position | Element | Size |
-| :---: | :--- | :--- |
-| `[-(5 + q)]` | `R` | 16 bytes |
-| `[-(4 + q)]` | `leaf_index` | `index_size` bytes, big-endian |
-| `[-(3 + q)]` | `wots` | 514 bytes (2-byte grinding counter + 512 bytes of chains) |
-| `[-(2 + q)..-3]` | `merkle path` | 16 bytes per element |
-| `[-2]` | `sighash type` (optional) | 1 byte |
-| `[-1]` | `q` | 1–2 bytes |
+For a stateful signature that byte string is `R || leaf_index || wots+c || mp_1 .. mp_q`: the 16-byte randomizer, the big-endian `leaf_index` of `index_size` = `ceildiv(min(q, 64), 8)` bytes, a 2-byte grinding counter followed by 512 bytes of WOTS+C chain values, and the 16-byte Merkle path nodes. That is 548 bytes at `q = 1` up to 4619 bytes at `q = 255`, indicator included.
 
-Positions above assume the sighash byte is present; without it everything below `[-1]` shifts up by one.
+For a stateless signature it is `R || FORS signature || hypertree signature` = 16 + 2240 + 3520 = 5776 bytes, which together with the indicator is 5777.
 
-Because `index_size` grows in whole bytes, the signature size does not grow uniformly with `q`: it is 660 bytes at `q = 8` and 677 bytes at `q = 9`, where the leaf index crosses into a second byte.
+None of those boundaries is visible in the stack layout.
 
-So, in a script, the required push order is as follows (example for `q = 3`): `<R> <leaf_index> <wots> <mp1> <mp2> <mp3> [<sighash_type>] <3>`
+Because `index_size` grows in whole bytes, the signature size does not grow uniformly with `q`: it is 660 bytes at `q = 8` and 677 bytes at `q = 9`, where the leaf index crosses into a second byte. `N` in turn increases only where `L` crosses a multiple of 80.
 
 Note that `q` is derived from the signing leaf's position, not from the number of signatures the key has issued: a leaf at height `h` in the FXMSS tree gives `q = FXMSS_HEIGHT - h`. In a balanced tree every leaf sits at the same height, so `q` is constant for the life of the key and the state counter shows up in `leaf_index` instead. In an unbalanced tree the leaf descends one level per signature, so `q` grows by one each time and `leaf_index` stays 1 — except for the very last signature, which reuses the same `q` as the one before it with `leaf_index` 0.
+
+### The SIGHASH byte
+
+In transaction context a 1-byte SIGHASH flag sits on the stack immediately below `q`, and it is a stack element of its own rather than a suffix on the signature. An element that is not exactly one byte, or whose value is not a defined hashtype, fails the script with `SCRIPT_ERR_SCHNORR_SIG_HASHTYPE`.
+
+Which context applies is determined by the signature checker, not by a script verification flag: transaction validation uses a checker that computes a sighash over the spending transaction and consumes the byte, while block validation uses one whose message is the block hash and which consumes no SIGHASH byte.
 
 ### The indicator byte
 
