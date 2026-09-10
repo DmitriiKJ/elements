@@ -872,12 +872,12 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                     if (stack.size() < 2) return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
 
                     const valtype pubkey = stacktop(-1);
-                    const CScriptNum num(stacktop(-2), fRequireMinimal);
-                    popstack(stack);
-                    popstack(stack);
-
                     if (pubkey.size() != SHRINCS::PUBKEY_SIZE)
                         return set_error(serror, SCRIPT_ERR_PUBKEYTYPE);
+                    popstack(stack);
+
+                    const CScriptNum num(stacktop(-1), fRequireMinimal);
+                    popstack(stack);
 
                     std::vector<unsigned char> sign;
                     int hashtype = SIGHASH_DEFAULT;
