@@ -7,8 +7,17 @@ namespace FXMSS
         return bits >= 64 ? 0 : value >> bits;
     }
 
+    bool fxmss_structure_valid(const unsigned char* structure)
+    {
+        unsigned char tree_shape = structure[0];
+
+        return tree_shape == FXMSS_SHAPE_UNBALANCED || tree_shape == FXMSS_SHAPE_BALANCED;
+    }
+
     bool fxmss_node(const unsigned char* sk_seed, CSHA256& hash_ctx, unsigned char* adrs, const unsigned char* structure, uint64_t node_index, uint32_t node_height, unsigned char* out)
     {
+        if (!fxmss_structure_valid(structure)) return false;
+
         uint32_t node_depth = FXMSS_HEIGHT - node_height;
         unsigned char tree_shape = structure[0], tree_depth = structure[1];
 
@@ -54,6 +63,8 @@ namespace FXMSS
 
     bool fxmss_sign(const unsigned char* message, const unsigned char* sk_seed, CSHA256& hash_ctx, uint64_t leaf_index, uint32_t leaf_height, const unsigned char* structure, unsigned char* out)
     {
+        if (!fxmss_structure_valid(structure)) return false;
+
         uint32_t leaf_depth = FXMSS_HEIGHT - leaf_height;
         unsigned char tree_shape = structure[0], tree_depth = structure[1];
 

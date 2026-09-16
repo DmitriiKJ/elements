@@ -64,6 +64,8 @@ namespace SHRINCS {
         out_sk.pk.seed.assign(bytes.begin() + 2 * N, bytes.begin() + 3 * N);
         out_sk.pk.sl_root.assign(bytes.begin() + 3 * N, bytes.begin() + 4 * N);
         out_sk.structure.assign(bytes.begin() + 4 * N, bytes.begin() + 4 * N + 2);
+        if (!FXMSS::fxmss_structure_valid(out_sk.structure.data())) return false;
+
         out_sk.pk.sf_root.assign(bytes.begin() + 4 * N + 2, bytes.end());
 
         return true;
@@ -72,6 +74,7 @@ namespace SHRINCS {
     bool shrincs_keygen(const std::vector<unsigned char>& seed, const std::vector<unsigned char>& structure, SecretKey& out_sk)
     {
         if (seed.size() != 3 * N || structure.size() != 2) return false;
+        if (!FXMSS::fxmss_structure_valid(structure.data())) return false;
 
         memcpy(out_sk.seed.data(), seed.data(), N);
         memcpy(out_sk.prf.data(), seed.data() + N, N);
