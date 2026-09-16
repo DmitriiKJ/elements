@@ -106,6 +106,8 @@ BASE_SCRIPTS = [
     'feature_block_v4.py',
     'feature_pak.py --legacy-wallet',
     'feature_blocksign.py --legacy-wallet',
+    'feature_shrincs_spend.py',
+    'feature_shrincs_standardness.py',
     'rpc_calcfastmerkleroot.py',
     'feature_txwitness.py',
     'rpc_tweakfedpeg.py --legacy-wallet',

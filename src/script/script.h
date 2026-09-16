@@ -68,6 +68,13 @@ static constexpr int64_t VALIDATION_WEIGHT_PER_SIGOP_PASSED{50};
 static constexpr int64_t VALIDATION_WEIGHT_OFFSET{50};
 
 // ELEMENTS:
+// Validation weight per passing SHRINCS signature, charged as a fraction of the
+// signature's own size so that an honest signature keeps the same headroom a
+// Schnorr one has (65 bytes against a cost of 50).
+static constexpr int64_t SHRINCS_VALIDATION_WEIGHT_NUM{10};
+static constexpr int64_t SHRINCS_VALIDATION_WEIGHT_DEN{13};
+
+// ELEMENTS:
 // Number of confirms on parent chain required to confirm on sidechain.
 static const unsigned int DEFAULT_PEGIN_CONFIRMATION_DEPTH = 8;
 
@@ -210,8 +217,10 @@ enum opcodetype
     OP_NOP2 = OP_CHECKLOCKTIMEVERIFY,
     OP_CHECKSEQUENCEVERIFY = 0xb2,
     OP_NOP3 = OP_CHECKSEQUENCEVERIFY,
-    OP_NOP4 = 0xb3,
-    OP_NOP5 = 0xb4,
+    OP_SHRINCS = 0xb3,
+    OP_NOP4 = OP_SHRINCS,
+    OP_SHRINCSADD = 0xb4,
+    OP_NOP5 = OP_SHRINCSADD,
     OP_NOP6 = 0xb5,
     OP_NOP7 = 0xb6,
     OP_NOP8 = 0xb7,

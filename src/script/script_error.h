@@ -125,6 +125,9 @@ typedef enum ScriptError_t
     SCRIPT_ERR_SIMPLICITY_AMR,
     SCRIPT_ERR_SIMPLICITY_OVERWEIGHT,
 
+    /* Elements: SHRINCS related errors */
+    SCRIPT_ERR_SHRINCS_SIG_SIZE,
+
     /* Must go last */
     SCRIPT_ERR_ERROR_COUNT
 } ScriptError;

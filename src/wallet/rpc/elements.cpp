@@ -28,6 +28,7 @@
 #include <wallet/rpc/util.h>
 #include <wallet/spend.h>
 #include <wallet/wallet.h>
+#include "crypto/shrincs/shrincs.h"
 
 // forward declarations
 namespace wallet {
@@ -60,6 +61,7 @@ RPCHelpMan signblock()
                 {
                     {"blockhex", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "The hex-encoded block from getnewblockhex"},
                     {"witnessScript", RPCArg::Type::STR_HEX, RPCArg::Optional::OMITTED, "The hex-encoded witness script. Required for dynamic federation blocks. Argument is \"\" when the block is P2WPKH."},
+                    {"pq", RPCArg::Type::BOOL, RPCArg::Default{false}, "Sign block using SHRINCS"},
                 },
                 RPCResult{
                     RPCResult::Type::ARR, "", "",
@@ -76,6 +78,10 @@ RPCHelpMan signblock()
                 },
         [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
 {
+    bool is_pq = false;
+    if (!request.params[2].isNull())
+        is_pq = request.params[2].get_bool();
+
     if (!g_signed_blocks) {
         throw JSONRPCError(RPC_MISC_ERROR, "Signed blocks are not active for this network.");
     }
@@ -114,34 +120,73 @@ RPCHelpMan signblock()
     }
 
     // Expose SignatureData internals in return value in lieu of "Partially Signed Bitcoin Blocks"
-    SignatureData block_sigs;
-    if (block.m_dynafed_params.IsNull()) {
-        GenericSignScript(*spk_man, block.GetBlockHeader(), block.proof.challenge, block_sigs, SCRIPT_NO_SIGHASH_BYTE /* additional_flags */);
-    } else {
-        if (request.params[1].isNull()) {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Signing dynamic blocks requires the witnessScript argument");
+    if (!is_pq)
+    {
+        SignatureData block_sigs;
+        if (block.m_dynafed_params.IsNull()) {
+            GenericSignScript(*spk_man, block.GetBlockHeader(), block.proof.challenge, block_sigs, SCRIPT_NO_SIGHASH_BYTE /* additional_flags */);
+        } else {
+            if (request.params[1].isNull()) {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, "Signing dynamic blocks requires the witnessScript argument");
+            }
+            std::vector<unsigned char> witness_bytes(ParseHex(request.params[1].get_str()));
+            // Note that we're adding the signblockscript to the wallet so it can actually
+            // satisfy witness program scriptpubkeys
+            if (!witness_bytes.empty()) {
+                spk_man->AddCScript(CScript(witness_bytes.begin(), witness_bytes.end()));
+            }
+            GenericSignScript(*spk_man, block.GetBlockHeader(), block.m_dynafed_params.m_current.m_signblockscript, block_sigs, SCRIPT_VERIFY_NONE /* additional_flags */);
         }
-        std::vector<unsigned char> witness_bytes(ParseHex(request.params[1].get_str()));
-        // Note that we're adding the signblockscript to the wallet so it can actually
-        // satisfy witness program scriptpubkeys
-        if (!witness_bytes.empty()) {
-            spk_man->AddCScript(CScript(witness_bytes.begin(), witness_bytes.end()));
-        }
-        GenericSignScript(*spk_man, block.GetBlockHeader(), block.m_dynafed_params.m_current.m_signblockscript, block_sigs, SCRIPT_VERIFY_NONE /* additional_flags */);
-    }
 
-    // Error if sig data didn't "grow"
-    if (!block_sigs.complete && block_sigs.signatures.empty()) {
-        throw JSONRPCError(RPC_VERIFY_ERROR, "Could not sign the block.");
+        // Error if sig data didn't "grow"
+        if (!block_sigs.complete && block_sigs.signatures.empty()) {
+            throw JSONRPCError(RPC_VERIFY_ERROR, "Could not sign the block.");
+        }
+        UniValue ret(UniValue::VARR);
+        for (const auto& signature : block_sigs.signatures) {
+            UniValue obj(UniValue::VOBJ);
+            obj.pushKV("pubkey", HexStr(signature.second.first));
+            obj.pushKV("sig", HexStr(MakeByteSpan(signature.second.second)));
+            ret.push_back(obj);
+        }
+        return ret;
     }
-    UniValue ret(UniValue::VARR);
-    for (const auto& signature : block_sigs.signatures) {
+    else
+    {
+        std::string pq_key_hex = gArgs.GetArg("-pqminerkey", "");
+        if (pq_key_hex.empty()) {
+            throw JSONRPCError(RPC_WALLET_ERROR, "No PQ miner key configured! Pass -pqminerkey to the node.");
+        }
+
+        SHRINCS::SecretKey sk;
+        if (!SHRINCS::shrincs_seckey_parse(ParseHex(pq_key_hex), sk)) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Malformed PQ miner key: expected %d bytes", SHRINCS::SECKEY_SIZE));
+        }
+
+        uint256 sighash = block.GetHash();
+
+        // Blocksigners only use the stateless path, which a null counter selects
+        // outright, whatever tree structure the key carries.
+        std::vector<unsigned char> pq_sig;
+        if (!SHRINCS::shrincs_sign(std::vector<unsigned char>(sighash.begin(), sighash.end()), {}, sk, NULL, {}, pq_sig)) {
+            throw JSONRPCError(RPC_VERIFY_ERROR, "Could not create the SHRINCS block signature.");
+        }
+        if (pq_sig.size() != SHRINCS::SL_SIGNATURE_SIZE) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "PQ miner key did not yield a stateless signature.");
+        }
+
+        std::vector<unsigned char> pubkey;
+        if (!SHRINCS::shrincs_pubkey_serialize(sk.pk, pubkey)) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Malformed PQ miner key: could not derive the public key.");
+        }
+
+        UniValue ret(UniValue::VARR);
         UniValue obj(UniValue::VOBJ);
-        obj.pushKV("pubkey", HexStr(signature.second.first));
-        obj.pushKV("sig", HexStr(MakeByteSpan(signature.second.second)));
+        obj.pushKV("pubkey", HexStr(pubkey));
+        obj.pushKV("sig", HexStr(pq_sig));
         ret.push_back(obj);
+        return ret;
     }
-    return ret;
 },
     };
 }

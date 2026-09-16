@@ -19,6 +19,15 @@ add_library(bitcoin_crypto STATIC EXCLUDE_FROM_ALL
   sha3.cpp
   sha512.cpp
   siphash.cpp
+  shrincs/address.cpp
+  shrincs/fors.cpp
+  shrincs/fxmss.cpp
+  shrincs/hash.cpp
+  shrincs/ht.cpp
+  shrincs/shrincs.cpp
+  shrincs/slh_dsa.cpp
+  shrincs/wots.cpp
+  shrincs/xmss.cpp
   ../support/cleanse.cpp
 )
 
