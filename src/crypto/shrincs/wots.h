@@ -1,9 +1,9 @@
-#ifndef WOTS_H
-#define WOTS_H
+#ifndef BITCOIN_CRYPTO_SHRINCS_WOTS_H
+#define BITCOIN_CRYPTO_SHRINCS_WOTS_H
 
-#include "address.h"
-#include "constants.h"
-#include "hash.h"
+#include <crypto/shrincs/address.h>
+#include <crypto/shrincs/constants.h>
+#include <crypto/shrincs/hash.h>
 
 using namespace Parameters;
 using namespace AddressTypes;
@@ -28,4 +28,4 @@ namespace WOTS
     bool wots_c_pk_from_sig(const unsigned char* sig, const unsigned char* message, CSHA256& hash_ctx, unsigned char* adrs, unsigned char* out);
 }
 
-#endif
+#endif // BITCOIN_CRYPTO_SHRINCS_WOTS_H

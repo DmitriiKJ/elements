@@ -1,7 +1,7 @@
-#ifndef FXMSS_H
-#define FXMSS_H
+#ifndef BITCOIN_CRYPTO_SHRINCS_FXMSS_H
+#define BITCOIN_CRYPTO_SHRINCS_FXMSS_H
 
-#include "wots.h"
+#include <crypto/shrincs/wots.h>
 
 using namespace WOTS;
 using namespace FXMSSShape;
@@ -14,4 +14,4 @@ namespace FXMSS
     bool fxmss_pk_from_sig(const unsigned char* sig, uint32_t sig_len, const unsigned char* message, CSHA256& hash_ctx, uint64_t leaf_index, unsigned char* out);
 }
 
-#endif
+#endif // BITCOIN_CRYPTO_SHRINCS_FXMSS_H

@@ -1,7 +1,7 @@
-#ifndef HT_H
-#define HT_H
+#ifndef BITCOIN_CRYPTO_SHRINCS_HT_H
+#define BITCOIN_CRYPTO_SHRINCS_HT_H
 
-#include "xmss.h"
+#include <crypto/shrincs/xmss.h>
 
 using namespace XMSS;
 
@@ -12,4 +12,4 @@ namespace HT
 
 }
 
-#endif
+#endif // BITCOIN_CRYPTO_SHRINCS_HT_H

@@ -1,4 +1,4 @@
-#include "fxmss.h"
+#include <crypto/shrincs/fxmss.h>
 
 namespace FXMSS
 {

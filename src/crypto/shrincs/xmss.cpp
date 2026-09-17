@@ -1,4 +1,4 @@
-#include "xmss.h"
+#include <crypto/shrincs/xmss.h>
 
 namespace XMSS
 {

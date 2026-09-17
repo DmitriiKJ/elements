@@ -1,8 +1,8 @@
-#ifndef SLH_DSA_H
-#define SLH_DSA_H
+#ifndef BITCOIN_CRYPTO_SHRINCS_SLH_DSA_H
+#define BITCOIN_CRYPTO_SHRINCS_SLH_DSA_H
 
-#include "ht.h"
-#include "fors.h"
+#include <crypto/shrincs/ht.h>
+#include <crypto/shrincs/fors.h>
 
 using namespace HT;
 using namespace FORS;
@@ -16,4 +16,4 @@ namespace SLH_DSA
     bool slh_dsa_verify(const unsigned char* message, uint32_t m_len, const unsigned char* signature, const unsigned char* ctx, uint32_t ctx_len, const unsigned char* pk_seed, const unsigned char* sl_root);
 }
 
-#endif
+#endif // BITCOIN_CRYPTO_SHRINCS_SLH_DSA_H

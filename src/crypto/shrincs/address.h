@@ -1,5 +1,5 @@
-#ifndef ADDRESS_H
-#define ADDRESS_H
+#ifndef BITCOIN_CRYPTO_SHRINCS_ADDRESS_H
+#define BITCOIN_CRYPTO_SHRINCS_ADDRESS_H
 
 #include <cstdint>
 #include <cstring>
@@ -16,4 +16,4 @@ namespace Address
     void set_18_22(unsigned char* adrs, uint32_t value);
 }
 
-#endif
+#endif // BITCOIN_CRYPTO_SHRINCS_ADDRESS_H

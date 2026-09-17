@@ -1,4 +1,4 @@
-#include "shrincs.h"
+#include <crypto/shrincs/shrincs.h>
 
 #include <algorithm>
 

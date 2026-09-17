@@ -1,4 +1,4 @@
-#include "ht.h"
+#include <crypto/shrincs/ht.h>
 
 namespace HT
 {

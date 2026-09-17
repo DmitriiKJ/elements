@@ -1,4 +1,4 @@
-#include "fors.h"
+#include <crypto/shrincs/fors.h>
 
 namespace FORS
 {

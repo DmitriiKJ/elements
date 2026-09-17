@@ -1,4 +1,4 @@
-#include "hash.h"
+#include <crypto/shrincs/hash.h>
 
 namespace HASH
 {

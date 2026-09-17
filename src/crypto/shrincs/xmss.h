@@ -1,7 +1,7 @@
-#ifndef XMSS_H
-#define XMSS_H
+#ifndef BITCOIN_CRYPTO_SHRINCS_XMSS_H
+#define BITCOIN_CRYPTO_SHRINCS_XMSS_H
 
-#include "wots.h"
+#include <crypto/shrincs/wots.h>
 
 using namespace WOTS;
 
@@ -13,4 +13,4 @@ namespace XMSS
 
 }
 
-#endif
+#endif // BITCOIN_CRYPTO_SHRINCS_XMSS_H

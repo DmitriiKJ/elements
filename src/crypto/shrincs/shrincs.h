@@ -1,13 +1,13 @@
-#ifndef SHRINCS_H
-#define SHRINCS_H
+#ifndef BITCOIN_CRYPTO_SHRINCS_SHRINCS_H
+#define BITCOIN_CRYPTO_SHRINCS_SHRINCS_H
 
 #include <random>
 #include <vector>
 #include <script/script.h>
-#include "xmss.h"
-#include "fxmss.h"
-#include "fors.h"
-#include "slh_dsa.h"
+#include <crypto/shrincs/xmss.h>
+#include <crypto/shrincs/fxmss.h>
+#include <crypto/shrincs/fors.h>
+#include <crypto/shrincs/slh_dsa.h>
 
 namespace SHRINCS {
     inline constexpr uint32_t PUBKEY_SIZE = 3 * N;
@@ -90,4 +90,4 @@ namespace SHRINCS {
     void shrincs_sig_to_witness(CScriptWitness& witness, const std::vector<unsigned char>& sig, bool sighash_type_ext);
 }
 
-#endif
+#endif // BITCOIN_CRYPTO_SHRINCS_SHRINCS_H

@@ -1,4 +1,4 @@
-#include "wots.h"
+#include <crypto/shrincs/wots.h>
 
 namespace WOTS
 {

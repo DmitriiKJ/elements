@@ -1,4 +1,4 @@
-#include "address.h"
+#include <crypto/shrincs/address.h>
 
 #include <crypto/common.h>
 

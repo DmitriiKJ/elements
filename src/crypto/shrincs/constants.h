@@ -1,5 +1,5 @@
-#ifndef CONSTANTS_H
-#define CONSTANTS_H
+#ifndef BITCOIN_CRYPTO_SHRINCS_CONSTANTS_H
+#define BITCOIN_CRYPTO_SHRINCS_CONSTANTS_H
 
 #include <cstdint>
 
@@ -60,4 +60,4 @@ namespace FXMSSShape
     inline constexpr uint8_t FXMSS_SHAPE_BALANCED  = 0x01;
 }
 
-#endif // CONSTANTS_H
+#endif // BITCOIN_CRYPTO_SHRINCS_CONSTANTS_H

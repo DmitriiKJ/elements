@@ -1,9 +1,9 @@
-#ifndef HASH_H
-#define HASH_H
+#ifndef BITCOIN_CRYPTO_SHRINCS_HASH_H
+#define BITCOIN_CRYPTO_SHRINCS_HASH_H
 
-#include "crypto/sha256.h"
+#include <crypto/sha256.h>
 #include <cstring>
-#include "constants.h"
+#include <crypto/shrincs/constants.h>
 
 using namespace Parameters;
 
@@ -61,4 +61,4 @@ namespace HASH
     void h_msg_sf(const unsigned char* r, const unsigned char* pk_seed, const unsigned char* sf_root, unsigned char* adrs, const unsigned char* message, uint32_t m_len, unsigned char* out);
 }
 
-#endif
+#endif // BITCOIN_CRYPTO_SHRINCS_HASH_H

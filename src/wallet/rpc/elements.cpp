@@ -28,7 +28,7 @@
 #include <wallet/rpc/util.h>
 #include <wallet/spend.h>
 #include <wallet/wallet.h>
-#include "crypto/shrincs/shrincs.h"
+#include <crypto/shrincs/shrincs.h>
 
 // forward declarations
 namespace wallet {

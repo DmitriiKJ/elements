@@ -1,4 +1,4 @@
-#include "slh_dsa.h"
+#include <crypto/shrincs/slh_dsa.h>
 
 #include <crypto/common.h>
 

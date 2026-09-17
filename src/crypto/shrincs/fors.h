@@ -1,10 +1,10 @@
-#ifndef FORS_H
-#define FORS_H
+#ifndef BITCOIN_CRYPTO_SHRINCS_FORS_H
+#define BITCOIN_CRYPTO_SHRINCS_FORS_H
 
-#include "address.h"
-#include "constants.h"
-#include "hash.h"
-#include "wots.h"
+#include <crypto/shrincs/address.h>
+#include <crypto/shrincs/constants.h>
+#include <crypto/shrincs/hash.h>
+#include <crypto/shrincs/wots.h>
 
 using namespace Parameters;
 using namespace AddressTypes;
@@ -19,4 +19,4 @@ namespace FORS
     void fors_pk_from_sig(const unsigned char* sig, const unsigned char* message, CSHA256& hash_ctx, unsigned char* adrs, unsigned char* out);
 }
 
-#endif
+#endif // BITCOIN_CRYPTO_SHRINCS_FORS_H
