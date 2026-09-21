@@ -3,9 +3,6 @@
 
 #include <crypto/shrincs/wots.h>
 
-using namespace WOTS;
-using namespace FXMSSShape;
-
 namespace FXMSS
 {
     bool fxmss_structure_valid(const unsigned char* structure);

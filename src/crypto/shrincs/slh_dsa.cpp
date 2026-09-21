@@ -2,6 +2,15 @@
 
 #include <crypto/common.h>
 
+using namespace Parameters;
+using namespace AddressTypes;
+using namespace Address;
+using namespace HASH;
+using namespace WOTS;
+using namespace XMSS;
+using namespace HT;
+using namespace FORS;
+
 namespace SLH_DSA
 {
     void slh_dsa_digest_message(const unsigned char* r, const unsigned char* pk_seed, const unsigned char* sl_root, const unsigned char* message, uint32_t m_len, unsigned char* out_digest, uint64_t* out_tree, uint32_t* out_leaf)

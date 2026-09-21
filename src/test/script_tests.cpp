@@ -1780,15 +1780,15 @@ BOOST_AUTO_TEST_CASE(compute_tapleaf)
 
 // The stateful path signs from a UXMSS tree, where state_ctr N yields a Merkle path
 // of N + 1 elements. Depth 32 leaves room to exercise both small and multi-byte q.
-static const std::vector<unsigned char> SHRINCS_TEST_STRUCTURE = {FXMSS_SHAPE_UNBALANCED, 32};
+static const std::vector<unsigned char> SHRINCS_TEST_STRUCTURE = {FXMSSShape::FXMSS_SHAPE_UNBALANCED, 32};
 
 // A BXMSS tree of the same nominal size, where every counter yields a Merkle path
 // of tree_depth elements instead of a growing one.
-static const std::vector<unsigned char> SHRINCS_TEST_STRUCTURE_BALANCED = {FXMSS_SHAPE_BALANCED, 8};
+static const std::vector<unsigned char> SHRINCS_TEST_STRUCTURE_BALANCED = {FXMSSShape::FXMSS_SHAPE_BALANCED, 8};
 
 static void shrincs_make_keypair(unsigned char salt, SHRINCS::SecretKey& out_sk, std::vector<unsigned char>& out_pubkey, const std::vector<unsigned char>& structure = SHRINCS_TEST_STRUCTURE)
 {
-    std::vector<unsigned char> seed(3 * N);
+    std::vector<unsigned char> seed(3 * Parameters::N);
     for (size_t i = 0; i < seed.size(); i++) {
         seed[i] = static_cast<unsigned char>(i * 7 + salt);
     }
@@ -1936,7 +1936,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_balanced_test)
     // many path elements to pop. First, middle and last leaf all give the same q.
     for (uint32_t state_ctr : {0u, 1u << (depth - 1), (1u << depth) - 1u}) {
         std::vector<unsigned char> sig = shrincs_make_sig(sighash, sk, state_ctr, SIGHASH_ALL);
-        BOOST_CHECK_EQUAL(sig.size(), SHRINCS::SF_INDICATOR_SIZE + N + SHRINCS::sf_leaf_index_size(depth) + SHRINCS::SF_WOTS_PART_SIZE + N * depth + 1);
+        BOOST_CHECK_EQUAL(sig.size(), SHRINCS::SF_INDICATOR_SIZE + Parameters::N + SHRINCS::sf_leaf_index_size(depth) + SHRINCS::SF_WOTS_PART_SIZE + Parameters::N * depth + 1);
 
         CScriptWitness witness;
         SHRINCS::shrincs_sig_to_witness(witness, sig, true);
@@ -1954,7 +1954,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_balanced_test)
         // Corrupting the first Merkle path element must break the recomputed root. The
         // element straddles the 80-byte cut points, so the layout is unaffected.
         std::vector<unsigned char> sig = shrincs_make_sig(sighash, sk, 0, SIGHASH_ALL);
-        sig[SHRINCS::SF_INDICATOR_SIZE + N + SHRINCS::sf_leaf_index_size(depth) + SHRINCS::SF_WOTS_PART_SIZE] ^= 1;
+        sig[SHRINCS::SF_INDICATOR_SIZE + Parameters::N + SHRINCS::sf_leaf_index_size(depth) + SHRINCS::SF_WOTS_PART_SIZE] ^= 1;
 
         CScriptWitness witness;
         SHRINCS::shrincs_sig_to_witness(witness, sig, true);
@@ -2047,7 +2047,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_malformed_test)
         // q claiming more parts than the stack holds.
         CScriptWitness witness;
         SHRINCS::shrincs_sig_to_witness(witness, sig, true);
-        witness.stack.back() = CScriptNum(FXMSS_HEIGHT).getvch();
+        witness.stack.back() = CScriptNum(Parameters::FXMSS_HEIGHT).getvch();
         witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
 
         ScriptError err;
@@ -2288,7 +2288,7 @@ BOOST_AUTO_TEST_CASE(shrincs_secretkey_wipe_test)
 
     const std::vector<unsigned char> seed = sk.seed;
     const std::vector<unsigned char> prf = sk.prf;
-    const std::vector<unsigned char> zeros(N, 0);
+    const std::vector<unsigned char> zeros(Parameters::N, 0);
     BOOST_CHECK(seed != zeros);
     BOOST_CHECK(prf != zeros);
 
@@ -2301,7 +2301,7 @@ BOOST_AUTO_TEST_CASE(shrincs_secretkey_wipe_test)
     BOOST_CHECK(moved.seed == seed);
     BOOST_CHECK(moved.prf == prf);
     BOOST_CHECK(moved.pk.sf_root == copy.pk.sf_root);
-    BOOST_CHECK_EQUAL(sk.seed.size(), N);
+    BOOST_CHECK_EQUAL(sk.seed.size(), Parameters::N);
     BOOST_CHECK(sk.seed == zeros);
     BOOST_CHECK(sk.prf == zeros);
 

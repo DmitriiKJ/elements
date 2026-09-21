@@ -3,8 +3,6 @@
 
 #include <crypto/shrincs/xmss.h>
 
-using namespace XMSS;
-
 namespace HT
 {
     void hypertree_sign(const unsigned char* message, const unsigned char* sk_seed, CSHA256& hash_ctx, uint64_t tree_index, uint32_t leaf_index, unsigned char* out);

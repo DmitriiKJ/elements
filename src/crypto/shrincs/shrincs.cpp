@@ -4,6 +4,18 @@
 
 #include <algorithm>
 
+using namespace Parameters;
+using namespace AddressTypes;
+using namespace Address;
+using namespace HASH;
+using namespace WOTS;
+using namespace XMSS;
+using namespace FXMSSShape;
+using namespace FXMSS;
+using namespace FORS;
+using namespace HT;
+using namespace SLH_DSA;
+
 namespace SHRINCS {
     PublicKey::PublicKey() : seed(N), sl_root(N), sf_root(N) {}
 

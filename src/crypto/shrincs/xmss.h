@@ -3,8 +3,6 @@
 
 #include <crypto/shrincs/wots.h>
 
-using namespace WOTS;
-
 namespace XMSS
 {
     void xmss_node(const unsigned char* sk_seed, CSHA256& hash_ctx, unsigned char* adrs, uint32_t node_idx, uint32_t node_height, unsigned char* out);

@@ -584,12 +584,12 @@ bool shrincs_sign_from_stack(std::vector<std::vector<unsigned char> >& stack, un
     if (q == SHRINCS::Q_STATELESS)
     {
         body_size = SHRINCS::SL_BODY_SIZE;
-        indicator = (unsigned char)FXMSS_HEIGHT;
+        indicator = (unsigned char)Parameters::FXMSS_HEIGHT;
     }
-    else if (q >= 1 && q <= (int64_t)FXMSS_HEIGHT)
+    else if (q >= 1 && q <= (int64_t)Parameters::FXMSS_HEIGHT)
     {
         body_size = SHRINCS::sf_body_size((uint32_t)q);
-        indicator = (unsigned char)(FXMSS_HEIGHT - q);
+        indicator = (unsigned char)(Parameters::FXMSS_HEIGHT - q);
     }
     else
     {

@@ -5,11 +5,6 @@
 #include <crypto/shrincs/constants.h>
 #include <crypto/shrincs/hash.h>
 
-using namespace Parameters;
-using namespace AddressTypes;
-using namespace Address;
-using namespace HASH;
-
 namespace WOTS
 {
     uint32_t sum(const uint32_t* arr, uint32_t arr_len);

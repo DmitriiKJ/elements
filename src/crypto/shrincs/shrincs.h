@@ -10,16 +10,16 @@
 #include <crypto/shrincs/slh_dsa.h>
 
 namespace SHRINCS {
-    inline constexpr uint32_t PUBKEY_SIZE = 3 * N;
-    inline constexpr uint32_t SECKEY_SIZE = 5 * N + 2;
+    inline constexpr uint32_t PUBKEY_SIZE = 3 * Parameters::N;
+    inline constexpr uint32_t SECKEY_SIZE = 5 * Parameters::N + 2;
 
     inline constexpr uint32_t SF_INDICATOR_SIZE = 1;
     inline constexpr uint32_t SF_LEAF_INDEX_SIZE_MIN = 1;
     inline constexpr uint32_t SF_LEAF_INDEX_SIZE_MAX = 8;
-    inline constexpr uint32_t SF_WOTS_PART_SIZE = 2 + WOTS_C_CHAINS_SIZE;
-    inline constexpr uint32_t SF_SIGNATURE_SIZE_MIN = SF_INDICATOR_SIZE + N + SF_LEAF_INDEX_SIZE_MIN + FXMSS_SIGNATURE_SIZE_MIN;
-    inline constexpr uint32_t SF_SIGNATURE_SIZE_MAX = SF_INDICATOR_SIZE + N + SF_LEAF_INDEX_SIZE_MAX + FXMSS_SIGNATURE_SIZE_MAX;
-    inline constexpr uint32_t SL_SIGNATURE_SIZE = SF_INDICATOR_SIZE + SPHX_SIGNATURE_SIZE;
+    inline constexpr uint32_t SF_WOTS_PART_SIZE = 2 + Parameters::WOTS_C_CHAINS_SIZE;
+    inline constexpr uint32_t SF_SIGNATURE_SIZE_MIN = SF_INDICATOR_SIZE + Parameters::N + SF_LEAF_INDEX_SIZE_MIN + Parameters::FXMSS_SIGNATURE_SIZE_MIN;
+    inline constexpr uint32_t SF_SIGNATURE_SIZE_MAX = SF_INDICATOR_SIZE + Parameters::N + SF_LEAF_INDEX_SIZE_MAX + Parameters::FXMSS_SIGNATURE_SIZE_MAX;
+    inline constexpr uint32_t SL_SIGNATURE_SIZE = SF_INDICATOR_SIZE + Parameters::SPHX_SIGNATURE_SIZE;
 
     inline constexpr uint32_t sf_leaf_index_size(uint32_t leaf_depth)
     {
@@ -34,10 +34,10 @@ namespace SHRINCS {
     // Length of a signature as serialized, less its leading indicator byte.
     inline constexpr uint32_t sf_body_size(uint32_t leaf_depth)
     {
-        return N + sf_leaf_index_size(leaf_depth) + SF_WOTS_PART_SIZE + N * leaf_depth;
+        return Parameters::N + sf_leaf_index_size(leaf_depth) + SF_WOTS_PART_SIZE + Parameters::N * leaf_depth;
     }
 
-    inline constexpr uint32_t SL_BODY_SIZE = SPHX_SIGNATURE_SIZE;
+    inline constexpr uint32_t SL_BODY_SIZE = Parameters::SPHX_SIGNATURE_SIZE;
 
     inline constexpr uint32_t sig_part_count(uint32_t body_size)
     {
@@ -47,12 +47,12 @@ namespace SHRINCS {
     inline constexpr uint32_t SL_PART_COUNT = sig_part_count(SL_BODY_SIZE);
 
     inline constexpr int64_t Q_EMPTY = 0;
-    inline constexpr int64_t Q_STATELESS = FXMSS_HEIGHT + 1;
+    inline constexpr int64_t Q_STATELESS = Parameters::FXMSS_HEIGHT + 1;
 
     static_assert(SIG_PART_SIZE <= MAX_SCRIPT_ELEMENT_SIZE);
     static_assert(SF_INDICATOR_SIZE + SL_BODY_SIZE == SL_SIGNATURE_SIZE);
     static_assert(SF_INDICATOR_SIZE + sf_body_size(1) == SF_SIGNATURE_SIZE_MIN);
-    static_assert(SF_INDICATOR_SIZE + sf_body_size(FXMSS_HEIGHT) == SF_SIGNATURE_SIZE_MAX);
+    static_assert(SF_INDICATOR_SIZE + sf_body_size(Parameters::FXMSS_HEIGHT) == SF_SIGNATURE_SIZE_MAX);
 
     class PublicKey
     {

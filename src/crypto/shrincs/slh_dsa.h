@@ -4,9 +4,6 @@
 #include <crypto/shrincs/ht.h>
 #include <crypto/shrincs/fors.h>
 
-using namespace HT;
-using namespace FORS;
-
 namespace SLH_DSA
 {
     void slh_dsa_digest_message(const unsigned char* r, const unsigned char* pk_seed, const unsigned char* sl_root, const unsigned char* message, uint32_t m_len, unsigned char* out_digest, uint64_t* out_tree, uint32_t* out_leaf);

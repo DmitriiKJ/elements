@@ -5,8 +5,6 @@
 #include <cstring>
 #include <crypto/shrincs/constants.h>
 
-using namespace Parameters;
-
 namespace HASH
 {
     const unsigned char zeros[64] = {};

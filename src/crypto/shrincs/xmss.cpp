@@ -1,5 +1,11 @@
 #include <crypto/shrincs/xmss.h>
 
+using namespace Parameters;
+using namespace AddressTypes;
+using namespace Address;
+using namespace HASH;
+using namespace WOTS;
+
 namespace XMSS
 {
     void xmss_node(const unsigned char* sk_seed, CSHA256& hash_ctx, unsigned char* adrs, uint32_t node_idx, uint32_t node_height, unsigned char* out)

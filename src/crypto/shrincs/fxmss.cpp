@@ -1,5 +1,12 @@
 #include <crypto/shrincs/fxmss.h>
 
+using namespace Parameters;
+using namespace AddressTypes;
+using namespace Address;
+using namespace HASH;
+using namespace WOTS;
+using namespace FXMSSShape;
+
 namespace FXMSS
 {
     static uint64_t shift_right(uint64_t value, uint32_t bits)

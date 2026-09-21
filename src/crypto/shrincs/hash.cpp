@@ -2,6 +2,8 @@
 
 #include <support/cleanse.h>
 
+using namespace Parameters;
+
 namespace HASH
 {
     void xor_array(const unsigned char* data1, const unsigned char* data2, unsigned char* out, uint32_t size) {

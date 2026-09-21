@@ -1,5 +1,12 @@
 #include <crypto/shrincs/ht.h>
 
+using namespace Parameters;
+using namespace AddressTypes;
+using namespace Address;
+using namespace HASH;
+using namespace WOTS;
+using namespace XMSS;
+
 namespace HT
 {
     void hypertree_sign(const unsigned char* message, const unsigned char* sk_seed, CSHA256& hash_ctx, uint64_t tree_index, uint32_t leaf_index, unsigned char* out)

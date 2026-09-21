@@ -6,11 +6,6 @@
 #include <crypto/shrincs/hash.h>
 #include <crypto/shrincs/wots.h>
 
-using namespace Parameters;
-using namespace AddressTypes;
-using namespace Address;
-using namespace HASH;
-
 namespace FORS
 {
     void fors_sk_gen(const unsigned char* sk_seed, CSHA256& hash_ctx, unsigned char* adrs, uint32_t node_index, unsigned char* out);
