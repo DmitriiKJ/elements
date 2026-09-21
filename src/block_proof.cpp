@@ -49,6 +49,7 @@ static bool CheckProofGeneric(const CBlockHeader& block, const uint32_t max_bloc
         | SCRIPT_VERIFY_LOW_S // Stop easiest signature fiddling
         | SCRIPT_VERIFY_WITNESS // Witness and to enforce cleanstack
         | (is_dyna ? SCRIPT_VERIFY_NONE : SCRIPT_NO_SIGHASH_BYTE); // Non-dynafed blocks do not have sighash byte
+    proof_flags |= SCRIPT_VERIFY_SHRINCS; // // Always on: signblockscript is the signers' choice; no chain context here to gate on the deployment
     return GenericVerifyScript(scriptSig, witness, challenge, proof_flags, block);
 }
 

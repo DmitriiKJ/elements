@@ -831,6 +831,13 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                 case OP_SHRINCS:
                 {
                     // (sig q pubkey -- bool)
+                    if (!(flags & SCRIPT_VERIFY_SHRINCS)) {
+                        // not enabled; treat as a NOP4
+                        if (flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
+                            return set_error(serror, SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS);
+                        break;
+                    }
+
                     if (stack.size() < 1)
                         return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
 
@@ -869,6 +876,13 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                 case OP_SHRINCSADD:
                 {
                     // (sig num pubkey -- num)
+                    if (!(flags & SCRIPT_VERIFY_SHRINCS)) {
+                        // not enabled; treat as a NOP5
+                        if (flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
+                            return set_error(serror, SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS);
+                        break;
+                    }
+
                     if (stack.size() < 2) return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
 
                     const valtype pubkey = stacktop(-1);

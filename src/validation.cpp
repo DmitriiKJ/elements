@@ -1494,6 +1494,13 @@ bool MemPoolAccept::PolicyScriptChecks(const ATMPArgs& args, Workspace& ws)
         scriptVerifyFlags |= SCRIPT_SIGHASH_RANGEPROOF;
     }
 
+    // Likewise for SHRINCS: until the deployment is active, OP_SHRINCS and
+    // OP_SHRINCSADD stay discouraged upgradable NOPs for relay purposes, so no
+    // SHRINCS spend enters the mempool before the network enforces it.
+    if (DeploymentActiveAfter(m_active_chainstate.m_chain.Tip(), m_active_chainstate.m_chainman, Consensus::DEPLOYMENT_SHRINCS)) {
+        scriptVerifyFlags |= SCRIPT_VERIFY_SHRINCS;
+    }
+
     // Check input scripts and signatures.
     // This is done last to help prevent CPU exhaustion denial-of-service attacks.
     if (!CheckInputScripts(tx, state, m_view, scriptVerifyFlags, true, false, ws.m_precomputed_txdata, GetValidationCache())) {
@@ -2727,6 +2734,11 @@ static unsigned int GetBlockScriptFlags(const CBlockIndex& block_index, const Ch
 
     if (DeploymentActiveAfter(block_index.pprev, chainman, Consensus::DEPLOYMENT_SIMPLICITY)) {
         flags |= SCRIPT_VERIFY_SIMPLICITY;
+    }
+
+    // Enforce OP_SHRINCS / OP_SHRINCSADD; before activation they remain OP_NOP4 / OP_NOP5.
+    if (DeploymentActiveAfter(block_index.pprev, chainman, Consensus::DEPLOYMENT_SHRINCS)) {
+        flags |= SCRIPT_VERIFY_SHRINCS;
     }
 
     return flags;

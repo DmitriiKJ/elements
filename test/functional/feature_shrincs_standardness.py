@@ -88,8 +88,9 @@ class ShrincsStandardnessTest(BitcoinTestFramework):
         self.num_nodes = 1
         self.setup_clean_chain = True
         # No -acceptnonstdtxn: we want the default policy, which is what a
-        # relaying node on the network runs.
-        self.extra_args = [[]]
+        # relaying node on the network runs. The shrincs deployment is made
+        # active from genesis; feature_shrincs_activation.py covers the switch.
+        self.extra_args = [["-evbparams=shrincs:-1:::"]]
 
     def mempool_reason(self, tx):
         """Return the reject-reason testmempoolaccept gives for tx, or None if accepted."""

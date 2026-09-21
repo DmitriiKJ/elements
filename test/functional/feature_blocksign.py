@@ -108,6 +108,8 @@ class BlockSignTest(BitcoinTestFramework):
             "-anyonecanspendaremine=1",
             "-evbparams=dynafed:0:::",
             "-con_dyna_deploy_signal=1",
+            # Deliberately no -evbparams=shrincs: block signatures do not depend on the
+            # shrincs deployment.
             f"-pqminerkey={my_pq_key}",
         ]] * self.num_nodes
 

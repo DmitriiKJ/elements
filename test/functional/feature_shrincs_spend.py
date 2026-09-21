@@ -61,6 +61,9 @@ class ShrincsSpendTest(BitcoinTestFramework):
             "-anyonecanspendaremine=1",
             "-con_connect_genesis_outputs=1",
             "-validatepegin=0",
+            # OP_SHRINCS is gated by the shrincs deployment; make it active from genesis.
+            # The deployment parameters do not enter the genesis block, so the vectors hold.
+            "-evbparams=shrincs:-1:::",
         ]]
 
     def mempool_reason(self, tx_hex):

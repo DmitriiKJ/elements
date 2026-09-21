@@ -161,6 +161,12 @@ enum : uint32_t {
     //
     SCRIPT_VERIFY_SIMPLICITY = (1U << 23),
 
+    // ELEMENTS:
+    // Enable OP_SHRINCS / OP_SHRINCSADD.
+    // Without this flag the two opcodes keep their previous OP_NOP4 / OP_NOP5 semantics
+    //
+    SCRIPT_VERIFY_SHRINCS = (1U << 24),
+
     // Constants to point to the highest flag in use. Add new flags above this line.
     //
     SCRIPT_VERIFY_END_MARKER

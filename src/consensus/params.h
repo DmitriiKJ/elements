@@ -39,6 +39,7 @@ enum DeploymentPos : uint16_t {
     DEPLOYMENT_TAPROOT, // Deployment of Schnorr/Taproot (BIPs 340-342)
     DEPLOYMENT_DYNA_FED, // Deployment of dynamic federation
     DEPLOYMENT_SIMPLICITY, // Deployment of Simplicity
+    DEPLOYMENT_SHRINCS, // Deployment of OP_SHRINCS / OP_SHRINCSADD
     // NOTE: Also add new deployments to VersionBitsDeploymentInfo in deploymentinfo.cpp
     MAX_VERSION_BITS_DEPLOYMENTS
 };

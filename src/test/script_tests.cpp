@@ -1837,7 +1837,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_test)
     CScript scriptCode;
     scriptCode << full_pubkey << OP_SHRINCS;
 
-    unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA;
+    unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA | SCRIPT_VERIFY_SHRINCS;
 
     {
         // SIGHASH_ALL, stateful with a single Merkle path element
@@ -1927,7 +1927,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_balanced_test)
     CScript scriptCode;
     scriptCode << full_pubkey << OP_SHRINCS;
 
-    unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA;
+    unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA | SCRIPT_VERIFY_SHRINCS;
 
     const unsigned int depth = SHRINCS_TEST_STRUCTURE_BALANCED[1];
     uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ALL, 1000, SigVersion::WITNESS_V0, flags, nullptr);
@@ -1999,7 +1999,7 @@ BOOST_AUTO_TEST_CASE(shrincs_opcode_malformed_test)
     txTo.vout.resize(1);
     txTo.witness.vtxinwit.resize(1);
 
-    unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA;
+    unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA | SCRIPT_VERIFY_SHRINCS;
 
     {
         // A pubkey of the wrong size must be rejected, not asserted on. The check happens
@@ -2191,7 +2191,7 @@ BOOST_AUTO_TEST_CASE(shrincsadd_opcode_test)
     CScript scriptCode;
     scriptCode << full_pubkey1 << OP_SHRINCS << full_pubkey2 << OP_SHRINCSADD << full_pubkey3 << OP_SHRINCSADD << OP_2 << OP_NUMEQUAL;
 
-    unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA;
+    unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA | SCRIPT_VERIFY_SHRINCS;
 
     uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ALL, 1000, SigVersion::WITNESS_V0, flags, nullptr);
     std::vector<unsigned char> sig1 = shrincs_make_sig(sighash, sk1, 0, SIGHASH_ALL);
@@ -2222,7 +2222,7 @@ BOOST_AUTO_TEST_CASE(shrincs_tapscript_validation_weight_test)
     CScript script;
     script << full_pubkey << OP_SHRINCS;
 
-    const unsigned int flags = SCRIPT_VERIFY_MINIMALDATA;
+    const unsigned int flags = SCRIPT_VERIFY_MINIMALDATA | SCRIPT_VERIFY_SHRINCS;
 
     // BaseSignatureChecker fails every SHRINCS check, which is enough here: the budget is
     // charged before verification, so a script that survives the charge fails with
@@ -2277,6 +2277,133 @@ BOOST_AUTO_TEST_CASE(shrincs_tapscript_validation_weight_test)
     SHRINCS::shrincs_sig_to_witness(witness, sf_sig, true);
     witness.stack.push_back(std::vector<unsigned char>(script.begin(), script.end()));
     BOOST_CHECK_GT(::GetSerializeSize(witness.stack) + VALIDATION_WEIGHT_OFFSET, sf_cost);
+}
+
+BOOST_AUTO_TEST_CASE(shrincs_opcode_inactive_test)
+{
+    SHRINCS::SecretKey sk;
+    std::vector<unsigned char> full_pubkey;
+    shrincs_make_keypair(0x00, sk, full_pubkey);
+
+    CMutableTransaction txTo;
+    txTo.vin.resize(1);
+    txTo.vout.resize(1);
+    txTo.witness.vtxinwit.resize(1);
+
+    const unsigned int active = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK | SCRIPT_VERIFY_MINIMALDATA | SCRIPT_VERIFY_SHRINCS;
+    const unsigned int inactive = active & ~SCRIPT_VERIFY_SHRINCS;
+
+    {
+        // P2WSH
+        CScript scriptCode;
+        scriptCode << full_pubkey << OP_SHRINCS;
+
+        uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ALL, 1000, SigVersion::WITNESS_V0, active, nullptr);
+        std::vector<unsigned char> sig = shrincs_make_sig(sighash, sk, 0, SIGHASH_ALL);
+
+        CScriptWitness witness;
+        SHRINCS::shrincs_sig_to_witness(witness, sig, true);
+        witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
+
+        ScriptError err;
+        BOOST_CHECK_EQUAL(shrincs_eval_witness(txTo, scriptCode, witness, active, &err), true);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_OK);
+
+        BOOST_CHECK_EQUAL(shrincs_eval_witness(txTo, scriptCode, witness, inactive, &err), false);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_CLEANSTACK);
+
+        BOOST_CHECK_EQUAL(shrincs_eval_witness(txTo, scriptCode, witness, inactive | SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS, &err), false);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS);
+    }
+
+    {
+        // Same for OP_SHRINCSADD.
+        CScript scriptCode;
+        scriptCode << full_pubkey << OP_SHRINCSADD << OP_1 << OP_NUMEQUAL;
+
+        uint256 sighash = SignatureHash(scriptCode, CTransaction(txTo), 0, SIGHASH_ALL, 1000, SigVersion::WITNESS_V0, active, nullptr);
+        std::vector<unsigned char> sig = shrincs_make_sig(sighash, sk, 1, SIGHASH_ALL);
+
+        CScriptWitness witness;
+        SHRINCS::shrincs_sig_to_witness(witness, sig, true);
+        witness.stack.push_back(std::vector<unsigned char>()); // the counter, 0, sits between the signature and the pubkey
+        witness.stack.push_back(std::vector<unsigned char>(scriptCode.begin(), scriptCode.end()));
+
+        ScriptError err;
+        BOOST_CHECK_EQUAL(shrincs_eval_witness(txTo, scriptCode, witness, active, &err), true);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_OK);
+
+        BOOST_CHECK_EQUAL(shrincs_eval_witness(txTo, scriptCode, witness, inactive, &err), false);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_UNKNOWN_ERROR); // OP_NUMEQUAL on the 48-byte pubkey throws scriptnum_error
+
+        BOOST_CHECK_EQUAL(shrincs_eval_witness(txTo, scriptCode, witness, inactive | SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS, &err), false);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS);
+    }
+
+    {
+        // Legacy
+        CScript scriptPubKey;
+        scriptPubKey << full_pubkey << OP_SHRINCS;
+
+        const unsigned int legacy_active = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_SHRINCS;
+        const unsigned int legacy_inactive = SCRIPT_VERIFY_P2SH;
+
+        uint256 sighash = SignatureHash(scriptPubKey, CTransaction(txTo), 0, SIGHASH_ALL, 1000, SigVersion::BASE, legacy_active, nullptr);
+        std::vector<unsigned char> sig = shrincs_make_sig(sighash, sk, 2, SIGHASH_ALL);
+
+        auto scriptsig_for = [&](const std::vector<unsigned char>& s) {
+            CScriptWitness parts;
+            SHRINCS::shrincs_sig_to_witness(parts, s, true);
+            CScript scriptSig;
+            for (const auto& elem : parts.stack) scriptSig << elem;
+            return scriptSig;
+        };
+        auto run = [&](const CScript& scriptSig, unsigned int flags, ScriptError* err) {
+            PrecomputedTransactionData txdata(txTo);
+            CTransaction finalTx(txTo);
+            GenericTransactionSignatureChecker<CTransaction> checker(&finalTx, 0, CConfidentialValue(1000), txdata, MissingDataBehavior::FAIL);
+            return VerifyScript(scriptSig, scriptPubKey, nullptr, flags, checker, err);
+        };
+
+        ScriptError err;
+        BOOST_CHECK_EQUAL(run(scriptsig_for(sig), legacy_active, &err), true);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_OK);
+        BOOST_CHECK_EQUAL(run(scriptsig_for(sig), legacy_inactive, &err), true);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_OK);
+        BOOST_CHECK_EQUAL(run(scriptsig_for(sig), legacy_inactive | SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS, &err), false);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS);
+
+        std::vector<unsigned char> bad_sig = sig;
+        bad_sig[SHRINCS::SF_INDICATOR_SIZE] ^= 1;
+        BOOST_CHECK_EQUAL(run(scriptsig_for(bad_sig), legacy_active, &err), false);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_SIG_NULLFAIL);
+        BOOST_CHECK_EQUAL(run(scriptsig_for(bad_sig), legacy_inactive, &err), true);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_OK);
+    }
+
+    {
+        // Tapscript
+        CScript script;
+        script << full_pubkey << OP_SHRINCS;
+
+        std::vector<unsigned char> sig = shrincs_make_sig(uint256::ONE, sk, 3, SIGHASH_ALL);
+        CScriptWitness witness;
+        SHRINCS::shrincs_sig_to_witness(witness, sig, true);
+
+        std::vector<std::vector<unsigned char>> stack(witness.stack);
+        ScriptExecutionData execdata;
+        execdata.m_validation_weight_left = 0; // a real check would be refused: nothing must be charged
+        execdata.m_validation_weight_left_init = true;
+
+        ScriptError err;
+        BOOST_CHECK_EQUAL(EvalScript(stack, script, SCRIPT_VERIFY_MINIMALDATA, BaseSignatureChecker(), SigVersion::TAPSCRIPT, execdata, &err), true);
+        BOOST_CHECK_EQUAL(stack.size(), witness.stack.size() + 1); // signature untouched, pubkey on top
+        BOOST_CHECK_EQUAL(execdata.m_validation_weight_left, 0);
+
+        stack = witness.stack;
+        BOOST_CHECK_EQUAL(EvalScript(stack, script, SCRIPT_VERIFY_MINIMALDATA | SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS, BaseSignatureChecker(), SigVersion::TAPSCRIPT, execdata, &err), false);
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS);
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -256,6 +256,12 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].min_activation_height = 0; // No activation delay
 
+        // SHRINCS: never activate
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].bit = 22;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].min_activation_height = 0; // No activation delay
+
         consensus.genesis_subsidy = 50*COIN;
         consensus.connect_genesis_outputs = false;
         consensus.subsidy_asset = CAsset();
@@ -414,6 +420,12 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].min_activation_height = 0; // No activation delay
 
+        // SHRINCS: never activate
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].bit = 22;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].min_activation_height = 0; // No activation delay
+
         consensus.genesis_subsidy = 50*COIN;
         consensus.connect_genesis_outputs = false;
         consensus.subsidy_asset = CAsset();
@@ -538,6 +550,12 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].min_activation_height = 0; // No activation delay
+
+        // SHRINCS: never activate
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].bit = 22;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].min_activation_height = 0; // No activation delay
 
         consensus.nMinimumChainWork = uint256{"0000000000000000000000000000000000000000000001d6dce8651b6094e4c1"};
         consensus.defaultAssumeValid = uint256{"0000000000003ed4f08dbdf6f7d6b271a6bcffce25675cb40aa9fa43179a89f3"}; // 72600
@@ -702,6 +720,12 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].min_activation_height = 0; // No activation delay
 
+        // SHRINCS: never activate
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].bit = 22;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].min_activation_height = 0; // No activation delay
+
         // ELEMENTS: copied from Main
         consensus.genesis_subsidy = 50*COIN;
         consensus.connect_genesis_outputs = false;
@@ -812,6 +836,14 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].min_activation_height = 0; // No activation delay
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].nPeriod = 128; // test ability to change from default
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].nThreshold = 128;
+
+        // SHRINCS: never activate by default
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].bit = 22;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].min_activation_height = 0; // No activation delay
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nPeriod = 128; // test ability to change from default
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nThreshold = 128;
 
         consensus.nMinimumChainWork = uint256{};
         consensus.defaultAssumeValid = uint256{};
@@ -1557,6 +1589,14 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].min_activation_height = 0; // No activation delay
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].nPeriod = 10080; // one week...
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].nThreshold = 10080; // ...of 100% signalling
+
+        // SHRINCS: not scheduled yet. Set nStartTime to the agreed activation height once the ELIP is final.
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].bit = 22;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].min_activation_height = 0; // No activation delay
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nPeriod = 10080; // one week...
+        consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nThreshold = 10080; // ...of 100% signalling
 
         // Activated from block 1,000,000.
         consensus.vDeployments[Consensus::DEPLOYMENT_DYNA_FED].bit = 25;
