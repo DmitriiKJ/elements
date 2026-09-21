@@ -1,5 +1,7 @@
 #include <crypto/shrincs/hash.h>
 
+#include <support/cleanse.h>
+
 namespace HASH
 {
     void xor_array(const unsigned char* data1, const unsigned char* data2, unsigned char* out, uint32_t size) {
@@ -110,6 +112,11 @@ namespace HASH
         sha256_add_to_ctx(ctx2, tmp, 64);
         sha256_add_to_ctx(ctx2, inner, 32);
         sha256_finalize_32(ctx2, out);
+
+        memory_cleanse(padded_key, sizeof(padded_key));
+        memory_cleanse(tmp, sizeof(tmp));
+        memory_cleanse(&ctx1, sizeof(ctx1));
+        memory_cleanse(&ctx2, sizeof(ctx2));
     }
 
     void prf(CSHA256& base_ctx, const unsigned char* sk_seed, unsigned char* adrs, unsigned char* out)
@@ -118,6 +125,8 @@ namespace HASH
         sha256_add_to_ctx(ctx, adrs, 22);
         sha256_add_to_ctx(ctx, sk_seed, N);
         sha256_finalize(ctx, out);
+
+        memory_cleanse(&ctx, sizeof(ctx));
     }
 
     void prf_msg_sl(const unsigned char* sk_prf, const unsigned char* opt_rand, const unsigned char* message, uint32_t m_len, unsigned char* out)
@@ -148,6 +157,7 @@ namespace HASH
         hmac_sha256(h_key, 64, h_input, m_len + N + 9, tmp);
         memcpy(out, tmp, N);
 
+        memory_cleanse(h_key, sizeof(h_key));
         delete[] h_input;
     }
 

@@ -1,11 +1,38 @@
 #include <crypto/shrincs/shrincs.h>
 
+#include <support/cleanse.h>
+
 #include <algorithm>
 
 namespace SHRINCS {
     PublicKey::PublicKey() : seed(N), sl_root(N), sf_root(N) {}
 
     SecretKey::SecretKey(): seed(N), prf(N), structure(2), pk() {}
+
+    SecretKey::~SecretKey()
+    {
+        Wipe();
+    }
+
+    SecretKey::SecretKey(SecretKey&& other) : SecretKey(static_cast<const SecretKey&>(other))
+    {
+        other.Wipe();
+    }
+
+    SecretKey& SecretKey::operator=(SecretKey&& other)
+    {
+        if (this != &other) {
+            *this = static_cast<const SecretKey&>(other);
+            other.Wipe();
+        }
+        return *this;
+    }
+
+    void SecretKey::Wipe()
+    {
+        memory_cleanse(seed.data(), seed.size());
+        memory_cleanse(prf.data(), prf.size());
+    }
 
     void generate_random_bytes(unsigned char* buffer, size_t length) {
         std::random_device rd;

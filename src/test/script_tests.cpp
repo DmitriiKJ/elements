@@ -2279,6 +2279,51 @@ BOOST_AUTO_TEST_CASE(shrincs_tapscript_validation_weight_test)
     BOOST_CHECK_GT(::GetSerializeSize(witness.stack) + VALIDATION_WEIGHT_OFFSET, sf_cost);
 }
 
+// SecretKey wipes its seeds when it is moved from or destroyed.
+BOOST_AUTO_TEST_CASE(shrincs_secretkey_wipe_test)
+{
+    SHRINCS::SecretKey sk;
+    std::vector<unsigned char> pubkey;
+    shrincs_make_keypair(0x00, sk, pubkey);
+
+    const std::vector<unsigned char> seed = sk.seed;
+    const std::vector<unsigned char> prf = sk.prf;
+    const std::vector<unsigned char> zeros(N, 0);
+    BOOST_CHECK(seed != zeros);
+    BOOST_CHECK(prf != zeros);
+
+    SHRINCS::SecretKey copy = sk;
+    BOOST_CHECK(copy.seed == seed);
+    BOOST_CHECK(sk.seed == seed);
+
+    // A move keeps the destination usable and wipes the source in place.
+    SHRINCS::SecretKey moved = std::move(sk);
+    BOOST_CHECK(moved.seed == seed);
+    BOOST_CHECK(moved.prf == prf);
+    BOOST_CHECK(moved.pk.sf_root == copy.pk.sf_root);
+    BOOST_CHECK_EQUAL(sk.seed.size(), N);
+    BOOST_CHECK(sk.seed == zeros);
+    BOOST_CHECK(sk.prf == zeros);
+
+    SHRINCS::SecretKey assigned;
+    assigned = std::move(moved);
+    BOOST_CHECK(assigned.seed == seed);
+    BOOST_CHECK(moved.seed == zeros);
+
+    // The moved-to key still signs, and the wiped one no longer does for the same pubkey.
+    std::vector<unsigned char> good, bad;
+    const std::vector<unsigned char> msg(32, 0x42);
+    BOOST_REQUIRE(SHRINCS::shrincs_sign(msg, {}, assigned, nullptr, {}, good));
+    BOOST_CHECK(SHRINCS::shrincs_verify(msg, good, {}, assigned.pk));
+    BOOST_REQUIRE(SHRINCS::shrincs_sign(msg, {}, sk, nullptr, {}, bad));
+    BOOST_CHECK(!SHRINCS::shrincs_verify(msg, bad, {}, assigned.pk));
+
+    // Wipe() on a live object.
+    assigned.Wipe();
+    BOOST_CHECK(assigned.seed == zeros);
+    BOOST_CHECK(assigned.prf == zeros);
+}
+
 BOOST_AUTO_TEST_CASE(shrincs_opcode_inactive_test)
 {
     SHRINCS::SecretKey sk;

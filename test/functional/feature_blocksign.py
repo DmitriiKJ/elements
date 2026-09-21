@@ -101,7 +101,7 @@ class BlockSignTest(BitcoinTestFramework):
         self.witnessScript = signblockscript # post-dynafed this becomes witnessScript
 
         # 82-byte SHRINCS secret key: sk_seed || sk_prf || pk_seed || sl_root || sf_structure || sf_root
-        my_pq_key = "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf26d0a4f0ef0e40cc280434e91bdbd973bf247781f2c9fe7a424bf3a34bd0f6979b0010d60ff0ea5ec937a5c2467a7bafef8384"
+        self.pq_key = "eedbc4b26a0fdb3c77861dda3c7de6989419fb6b37ad3e3e4256fc39547eaf26d0a4f0ef0e40cc280434e91bdbd973bf247781f2c9fe7a424bf3a34bd0f6979b0010d60ff0ea5ec937a5c2467a7bafef8384"
         self.extra_args = [[
             "-signblockscript={}".format(signblockscript),
             "-con_max_block_sig_size={}".format(self.required_signers*74+self.num_nodes*33),
@@ -110,7 +110,7 @@ class BlockSignTest(BitcoinTestFramework):
             "-con_dyna_deploy_signal=1",
             # Deliberately no -evbparams=shrincs: block signatures do not depend on the
             # shrincs deployment.
-            f"-pqminerkey={my_pq_key}",
+            f"-pqminerkey={self.pq_key}",
         ]] * self.num_nodes
 
     def setup_network(self):
@@ -245,6 +245,13 @@ class BlockSignTest(BitcoinTestFramework):
                 raise
 
     def run_test(self):
+        self.log.info("The SHRINCS signing key is masked in debug.log, like every other secret option")
+        for node in self.nodes:
+            with open(node.debug_log_path, encoding="utf-8") as f:
+                log = f.read()
+            assert self.pq_key not in log, "pqminerkey written to debug.log in clear"
+            assert "pqminerkey=****" in log
+
         # Have every node except last import its block signing private key.
         for i in range(self.num_keys):
             self.nodes[i].importprivkey(self.wifs[i])
@@ -375,6 +382,19 @@ class BlockSignTest(BitcoinTestFramework):
             self.log.info(f"Mined SHRINCS-signed block #{i + 1}")
 
         self.log.info("SHRINCS-signed blocks were mined!")
+
+        self.log.info("A key whose public roots do not match its seeds is refused rather than signing junk")
+        block_hex = self.nodes[0].getnewblockhex()
+        # Flip a bit of sl_root (bytes 48..63 of sk_seed || sk_prf || pk_seed || sl_root || structure || sf_root):
+        # the hypertree root recomputed from the signature then no longer matches the key's own claim.
+        corrupted_key = self.pq_key[:126] + format(int(self.pq_key[126:128], 16) ^ 1, "02x") + self.pq_key[128:]
+        self.restart_node(0, self.extra_args[0][:-1] + [f"-pqminerkey={corrupted_key}"])
+        assert_raises_rpc_error(-25, "does not verify against the public key carried by -pqminerkey",
+                                self.nodes[0].signblock, block_hex, signblockscript, True)
+        self.restart_node(0, self.extra_args[0][:-1] + ["-pqminerkey=zz"])
+        assert_raises_rpc_error(-8, "not a hex string", self.nodes[0].signblock, block_hex, signblockscript, True)
+        self.restart_node(0, self.extra_args[0][:-1] + [f"-pqminerkey={self.pq_key[:-2]}"])
+        assert_raises_rpc_error(-8, "expected 82 bytes", self.nodes[0].signblock, block_hex, signblockscript, True)
 
 if __name__ == '__main__':
     BlockSignTest(__file__).main()

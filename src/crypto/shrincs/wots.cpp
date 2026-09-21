@@ -1,5 +1,7 @@
 #include <crypto/shrincs/wots.h>
 
+#include <support/cleanse.h>
+
 namespace WOTS
 {
     uint32_t sum(const uint32_t* arr, uint32_t arr_len)
@@ -72,6 +74,7 @@ namespace WOTS
             setType(adrs, SL_WOTS_TW_HASH);
             chain(sk, 0, (1 << WOTS_TW_CHAIN_BITS) - 1, hash_ctx, adrs, wots_sk[i]);
         }
+        memory_cleanse(sk, sizeof(sk));
 
         setType(adrs, SL_WOTS_TW_PK);
         set_14_22(adrs, 0);
@@ -94,6 +97,7 @@ namespace WOTS
             setType(adrs, SL_WOTS_TW_HASH);
             chain(sk, 0, indexes[i], hash_ctx, adrs, out + N * i);
         }
+        memory_cleanse(sk, sizeof(sk));
     }
 
     void wots_tw_pk_from_sig(const unsigned char* sig, const unsigned char* message, CSHA256& hash_ctx, unsigned char* adrs, unsigned char* out)
@@ -135,6 +139,7 @@ namespace WOTS
             set_10_14(adrs, 0);
             chain(sk, 0, (1 << WOTS_C_CHAIN_BITS) - 1, hash_ctx, adrs, wots_sk[i]);
         }
+        memory_cleanse(sk, sizeof(sk));
 
         setType(adrs, SF_WOTS_C_PK);
         set_14_22(adrs, 0);
@@ -214,6 +219,7 @@ namespace WOTS
             set_10_14(adrs, 0);
             chain(sk, 0, indexes[i], hash_ctx, adrs, out + N * i + 2);
         }
+        memory_cleanse(sk, sizeof(sk));
 
         return true;
     }

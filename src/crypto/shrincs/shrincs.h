@@ -73,6 +73,13 @@ namespace SHRINCS {
             PublicKey pk;
 
             SecretKey();
+            ~SecretKey();
+            SecretKey(const SecretKey&) = default;
+            SecretKey& operator=(const SecretKey&) = default;
+            SecretKey(SecretKey&& other);
+            SecretKey& operator=(SecretKey&& other);
+
+            void Wipe();
     };
 
     void generate_random_bytes(unsigned char* buffer, size_t length);

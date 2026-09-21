@@ -454,4 +454,16 @@ BOOST_AUTO_TEST_CASE(logargs)
     BOOST_CHECK(str.find("private42") == std::string::npos);
 }
 
+// ELEMENTS: options that carry secrets must be registered SENSITIVE, or LogArgs()
+// writes their values to debug.log at startup. BasicTestingSetup registers the
+// real server options in gArgs, so this checks what elementsd actually does.
+BOOST_AUTO_TEST_CASE(secret_options_are_sensitive)
+{
+    for (const char* option : {"-pqminerkey", "-rpcpassword", "-rpcauth", "-torpassword", "-mainchainrpcpassword"}) {
+        const std::optional<unsigned int> flags = gArgs.GetArgFlags(option);
+        BOOST_REQUIRE_MESSAGE(flags.has_value(), option);
+        BOOST_CHECK_MESSAGE(*flags & ArgsManager::SENSITIVE, option);
+    }
+}
+
 BOOST_AUTO_TEST_SUITE_END()

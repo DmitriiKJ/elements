@@ -19,9 +19,11 @@
 #include <script/generic.hpp>
 #include <script/pegins.h>
 #include <secp256k1.h>
+#include <support/cleanse.h>
 #include <util/check.h>
 #include <util/signalinterrupt.h>
 #include <util/moneystr.h>
+#include <util/strencodings.h>
 #include <wallet/coincontrol.h>
 #include <wallet/fees.h>
 #include <wallet/receive.h>
@@ -155,24 +157,42 @@ RPCHelpMan signblock()
     {
         std::string pq_key_hex = gArgs.GetArg("-pqminerkey", "");
         if (pq_key_hex.empty()) {
-            throw JSONRPCError(RPC_WALLET_ERROR, "No PQ miner key configured! Pass -pqminerkey to the node.");
+            throw JSONRPCError(RPC_WALLET_ERROR, "No PQ miner key configured! Set pqminerkey in the configuration file.");
+        }
+        if (!IsHex(pq_key_hex)) {
+            memory_cleanse(pq_key_hex.data(), pq_key_hex.size());
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Malformed PQ miner key: not a hex string");
         }
 
         SHRINCS::SecretKey sk;
-        if (!SHRINCS::shrincs_seckey_parse(ParseHex(pq_key_hex), sk)) {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Malformed PQ miner key: expected %d bytes", SHRINCS::SECKEY_SIZE));
+        {
+            std::vector<unsigned char> pq_key_bytes = ParseHex(pq_key_hex);
+            memory_cleanse(pq_key_hex.data(), pq_key_hex.size());
+            const bool parsed = SHRINCS::shrincs_seckey_parse(pq_key_bytes, sk);
+            memory_cleanse(pq_key_bytes.data(), pq_key_bytes.size());
+            if (!parsed) {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Malformed PQ miner key: expected %d bytes and a known FXMSS tree shape", SHRINCS::SECKEY_SIZE));
+            }
         }
 
         uint256 sighash = block.GetHash();
+        const std::vector<unsigned char> message(sighash.begin(), sighash.end());
 
         // Blocksigners only use the stateless path, which a null counter selects
         // outright, whatever tree structure the key carries.
         std::vector<unsigned char> pq_sig;
-        if (!SHRINCS::shrincs_sign(std::vector<unsigned char>(sighash.begin(), sighash.end()), {}, sk, NULL, {}, pq_sig)) {
+        if (!SHRINCS::shrincs_sign(message, {}, sk, NULL, {}, pq_sig)) {
             throw JSONRPCError(RPC_VERIFY_ERROR, "Could not create the SHRINCS block signature.");
         }
         if (pq_sig.size() != SHRINCS::SL_SIGNATURE_SIZE) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "PQ miner key did not yield a stateless signature.");
+        }
+
+        // The serialized key carries its public roots rather than deriving them, so
+        // a corrupted or mismatched key would sign fine and simply never verify.
+        // Check the signature against the key's own public key before handing it out.
+        if (!SHRINCS::shrincs_verify(message, pq_sig, {}, sk.pk)) {
+            throw JSONRPCError(RPC_VERIFY_ERROR, "The SHRINCS block signature does not verify against the public key carried by -pqminerkey: the key is corrupted or its roots do not belong to its seeds.");
         }
 
         std::vector<unsigned char> pubkey;
