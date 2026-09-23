@@ -175,6 +175,7 @@ add_library(bitcoin_consensus STATIC EXCLUDE_FROM_ALL
   primitives/bitcoin/block.cpp
   primitives/bitcoin/merkleblock.cpp
   primitives/bitcoin/transaction.cpp
+  primitives/dropkick.cpp
   pubkey.cpp
   script/interpreter.cpp
   script/script.cpp
@@ -225,6 +226,12 @@ add_library(bitcoin_common STATIC EXCLUDE_FROM_ALL
   core_read.cpp
   core_write.cpp
   deploymentinfo.cpp
+  dropkick/hashes.cpp
+  dropkick/commitment.cpp
+  dropkick/publication.cpp
+  dropkick/payload.cpp
+  dropkick/statement.cpp
+  dropkick/sighash.cpp
   external_signer.cpp
   init/common.cpp
   issuance.cpp
@@ -309,6 +316,7 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   dynafed.cpp
   dbwrapper.cpp
   deploymentstatus.cpp
+  dropkick/validation.cpp
   flatfile.cpp
   headerssync.cpp
   httprpc.cpp

@@ -33,6 +33,8 @@
 #include <mainchainrpc.h>
 #include <node/blockstorage.h>
 #include <node/utxo_snapshot.h>
+#include <dropkick/payload.h>
+#include <dropkick/validation.h>
 #include <pegins.h>
 #include <policy/ephemeral_policy.h>
 #include <policy/policy.h>
@@ -282,6 +284,8 @@ bool CheckSequenceLocksAtTip(CBlockIndex* tip,
 
 // Returns the script flags which should be checked for a given block
 static unsigned int GetBlockScriptFlags(const CBlockIndex& block_index, const ChainstateManager& chainman);
+
+static bool CheckDropKickRules(const CTransaction& tx, const CCoinsViewCache& view, const CBlockIndex* pindex_prev, ChainstateManager& chainman, TxValidationState& state) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
 static void LimitMempoolSize(CTxMemPool& pool, CCoinsViewCache& coins_cache)
     EXCLUSIVE_LOCKS_REQUIRED(::cs_main, pool.cs)
@@ -1103,6 +1107,10 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
     CAmountMap fee_map;
     if (!Consensus::CheckTxInputs(tx, state, m_view, m_active_chainstate.m_chain.Height() + 1, fee_map, setPeginsSpent, nullptr, true, true, fedpegscripts)) {
         return false; // state filled in by CheckTxInputs
+    }
+
+    if (!CheckDropKickRules(tx, m_view, m_active_chainstate.m_chain.Tip(), m_active_chainstate.m_chainman, state)) {
+        return false; // state filled in by CheckDropKickRules
     }
 
     // ELEMENTS: extra policy check for consistency between issuances and their rangeproof
@@ -2744,6 +2752,69 @@ static unsigned int GetBlockScriptFlags(const CBlockIndex& block_index, const Ch
     return flags;
 }
 
+namespace {
+    class NodeChainAccess final : public DropKickValidation::ChainAccess
+    {
+        ChainstateManager& m_chainman;
+
+    public:
+        explicit NodeChainAccess(ChainstateManager& chainman) : m_chainman(chainman) {}
+
+        bool GetBlock(const uint256& block_hash, uint256& merkle_root_out, int& depth_out) const override
+            EXCLUSIVE_LOCKS_REQUIRED(::cs_main)
+        {
+            AssertLockHeld(::cs_main);
+            const CBlockIndex* pindex = m_chainman.m_blockman.LookupBlockIndex(block_hash);
+            if (pindex == nullptr) return false;
+            if (!m_chainman.ActiveChain().Contains(pindex)) return false;
+            merkle_root_out = pindex->hashMerkleRoot;
+            depth_out = m_chainman.ActiveHeight() - pindex->nHeight;
+            return true;
+        }
+    };
+}
+
+static bool CheckDropKickRules(const CTransaction& tx, const CCoinsViewCache& view, const CBlockIndex* pindex_prev, ChainstateManager& chainman, TxValidationState& state) EXCLUSIVE_LOCKS_REQUIRED(::cs_main)
+{
+    if (!DeploymentActiveAfter(pindex_prev, chainman, Consensus::DEPLOYMENT_DROPKICK)) return true;
+
+    std::vector<DropKickValidation::SpentOutput> spent;
+    spent.reserve(tx.vin.size());
+    for (unsigned int i = 0; i < tx.vin.size(); ++i) 
+    {
+        DropKickValidation::SpentOutput out;
+        if (!tx.vin[i].m_is_pegin) 
+        {
+            const CTxOut& prev = view.AccessCoin(tx.vin[i].prevout).out;
+            out.scriptPubKey = prev.scriptPubKey;
+            out.value_known = prev.nValue.IsExplicit();
+            if (out.value_known) out.value = prev.nValue.GetAmount();
+            if (prev.nAsset.IsExplicit()) out.asset = prev.nAsset.GetAsset();
+        }
+        spent.push_back(std::move(out));
+    }
+
+    if (!DropKickPayload::HasPayloadOutput(tx)) 
+    {
+        for (unsigned int i = 0; i < tx.vin.size(); ++i) 
+        {
+            if (tx.vin[i].m_is_pegin) continue;
+            if (DropKickValidation::HasKnowledgeAsymmetry(spent[i].scriptPubKey)) 
+            {
+                return state.Invalid(TxValidationResult::TX_CONSENSUS, "dropkick-unclaimed-input", "input spends a hash-protected output outside a DropKick reveal");
+            }
+        }
+        return true;
+    }
+
+    const NodeChainAccess chain{chainman};
+    std::string err;
+    if (!DropKickValidation::CheckDropKickTransaction(tx, spent, chain, err)) 
+    {
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "dropkick-invalid-reveal", err);
+    }
+    return true;
+}
 
 bool CheckPeginRipeness(const CBlock& block, const std::vector<std::pair<CScript, CScript>>& fedpegscripts) {
     for (unsigned int i = 0; i < block.vtx.size(); i++) {
@@ -3039,6 +3110,12 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
                         setPeginsSpent == nullptr ? setPeginsSpentDummy : *setPeginsSpent,
                         parallel_script_checks ? &vChecks : nullptr, fCacheResults, fScriptChecks, fedpegscripts)) {
                 // Any transaction validation failure in ConnectBlock is a block consensus failure
+                state.Invalid(BlockValidationResult::BLOCK_CONSENSUS,
+                              tx_state.GetRejectReason(),
+                              tx_state.GetDebugMessage() + " in transaction " + tx.GetHash().ToString());
+                break;
+            }
+            if (!CheckDropKickRules(tx, view, pindex->pprev, m_chainman, tx_state)) {
                 state.Invalid(BlockValidationResult::BLOCK_CONSENSUS,
                               tx_state.GetRejectReason(),
                               tx_state.GetDebugMessage() + " in transaction " + tx.GetHash().ToString());
