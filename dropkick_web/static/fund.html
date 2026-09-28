@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DropKick · Outputs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <div>
+    <h1>Outputs</h1>
+    <p class="lead">The node wallet pays to an output of the chosen type. The sandbox keeps its key or script, so it can later be spent the ordinary way or rescued through DropKick.</p>
+  </div>
+
+  <section class="panel">
+    <h2>New output</h2>
+
+    <label>Output type</label>
+    <div class="choices" id="kinds">
+      <label><input type="radio" name="kind" value="p2pkh" data-persist checked> P2PKH</label>
+      <label><input type="radio" name="kind" value="p2wpkh" data-persist> P2WPKH</label>
+      <label><input type="radio" name="kind" value="p2sh_p2wpkh" data-persist> P2SH-P2WPKH</label>
+      <label><input type="radio" name="kind" value="p2sh" data-persist> P2SH</label>
+      <label><input type="radio" name="kind" value="p2wsh" data-persist> P2WSH</label>
+    </div>
+
+    <div id="key-box">
+      <label>Key</label>
+      <div class="choices">
+        <label><input type="radio" name="key_source" value="new" data-persist checked> New key</label>
+        <label><input type="radio" name="key_source" value="new_uncompressed" data-persist> New uncompressed key</label>
+        <label><input type="radio" name="key_source" value="reuse" data-persist> Key of another output</label>
+        <label><input type="radio" name="key_source" value="xprv" data-persist> xprv child</label>
+      </div>
+      <div id="reuse-box">
+        <label for="reuse_utxo">Output whose key to reuse</label>
+        <select id="reuse_utxo" name="reuse_utxo"></select>
+        <p class="hint">One key under several output types gives a single witness record for all of those inputs.</p>
+      </div>
+      <div id="xprv-box">
+        <label for="xprv_path">Path from the master key</label>
+        <input type="text" id="xprv_path" name="xprv_path" class="mono" value="m/84h/0h/0" data-persist>
+        <p class="hint" id="xprv-info"></p>
+      </div>
+    </div>
+
+    <div id="script-box">
+      <label for="script_hex">Redeem / witness script (hex, optional)</label>
+      <input type="text" id="script_hex" name="script_hex" class="mono" placeholder="auto: &lt;8 random bytes&gt; OP_DROP OP_TRUE" data-persist>
+      <p class="hint">The script needs no signature; the random bytes give every output its own statement.</p>
+    </div>
+
+    <label for="amount">Amount, sat</label>
+    <input type="number" id="amount" name="amount" value="200000" min="10000" data-persist style="width:200px">
+
+    <div class="actions"><button class="primary" id="fund">Create output</button></div>
+    <div id="fund-result"></div>
+  </section>
+
+  <section class="panel">
+    <h2>My outputs</h2>
+    <div class="table-wrap" id="utxos"></div>
+  </section>
+</main>
+<script src="app.js"></script>
+<script>
+const KEY_KINDS = ["p2pkh", "p2wpkh", "p2sh_p2wpkh"];
+const spendResults = {};
+
+function syncForm() {
+  const kind = formValue("kind");
+  const isKey = KEY_KINDS.includes(kind);
+  document.getElementById("key-box").hidden = !isKey;
+  document.getElementById("script-box").hidden = isKey;
+
+  const uncompressed = document.querySelector('input[name=key_source][value=new_uncompressed]');
+  uncompressed.disabled = kind !== "p2pkh";
+  if (uncompressed.disabled && uncompressed.checked) {
+    document.querySelector('input[name=key_source][value=new]').checked = true;
+  }
+  const source = formValue("key_source");
+  document.getElementById("reuse-box").hidden = source !== "reuse";
+  document.getElementById("xprv-box").hidden = source !== "xprv";
+}
+
+function render(st) {
+  const reuse = document.getElementById("reuse_utxo");
+  const prev = reuse.value;
+  const keyed = st.utxos.filter(u => u.key.type !== "script");
+  reuse.replaceChildren(...(keyed.length ? keyed.map(u => el("option", { value: u.id }, utxoLabel(u)))
+                                          : [el("option", { value: "" }, "no outputs with a key")]));
+  if (keyed.some(u => u.id === prev)) reuse.value = prev;
+
+  document.getElementById("xprv-info").replaceChildren(st.xprv
+    ? el("span", {}, "Sandbox master xprv: ", hex(st.xprv.xprv, 12))
+    : "The master key is created with the first xprv output.");
+
+  const box = document.getElementById("utxos");
+  if (!st.utxos.length) {
+    box.replaceChildren(el("div", { class: "empty" }, "No outputs yet."));
+    return;
+  }
+  box.replaceChildren(el("table", {},
+    el("tr", {}, ["Id", "Type", "Key", "Amount", "Outpoint", "Status", ""].map(h => el("th", {}, h))),
+    [...st.utxos].reverse().map(u => el("tr", {},
+      el("td", {}, u.id),
+      el("td", {}, KIND_LABELS[u.kind]),
+      el("td", {}, keyDescription(u)),
+      el("td", { class: "num" }, sats(u.amount)),
+      el("td", {}, txLink(u.txid), ":" + u.vout),
+      el("td", {}, badge(u.status), u.batch ? el("span", { class: "hint" }, " " + u.batch) : null,
+        u.spent_txid ? el("div", {}, "by ", txLink(u.spent_txid, 6)) : null),
+      el("td", {},
+        u.status !== "spent" ? el("button", { class: "small", onclick: e => spend(u.id, e.target) }, "Spend normally") : null,
+        spendResults[u.id] || null)))));
+}
+
+async function spend(id, button) {
+  await busy(button, "…", async () => {
+    const r = await api("spend", { utxo: id });
+    spendResults[id] = r.accepted
+      ? resultBox(true, "Accepted", r.txid)
+      : resultBox(false, "Rejected by the node", r.reason);
+    render(await loadState());
+  });
+}
+
+document.getElementById("fund").onclick = e => busy(e.target, "Funding…", async () => {
+  const body = {
+    kind: formValue("kind"),
+    amount: Number(formValue("amount")),
+    key_source: formValue("key_source"),
+    reuse_utxo: formValue("reuse_utxo"),
+    xprv_path: formValue("xprv_path"),
+    script_hex: formValue("script_hex"),
+  };
+  const u = await api("fund", body);
+  document.getElementById("fund-result").replaceChildren(
+    resultBox(true, `Created ${u.id}: ${KIND_LABELS[u.kind]}, ${sats(u.amount)}`, `${u.txid}:${u.vout}`));
+  render(await loadState());
+});
+
+document.querySelectorAll("input[name=kind], input[name=key_source]").forEach(i => i.addEventListener("change", syncForm));
+restoreForm();
+syncForm();
+loadState().then(render).catch(e => toast("Error: " + e.message));
+</script>
+</body>
+</html>

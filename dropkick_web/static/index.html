@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DropKick · Chain</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <div>
+    <h1>Chain and Q-day</h1>
+    <p class="lead">A local regtest node. Mine blocks to bury a commitment, and declare Q-day to make the node reject ordinary spends of hash-protected outputs.</p>
+  </div>
+
+  <section class="panel">
+    <div class="stats" id="stats"></div>
+  </section>
+
+  <div class="grid2">
+    <section class="panel">
+      <h2>Mining</h2>
+      <label for="mine-n">Number of blocks</label>
+      <div class="row">
+        <input type="number" id="mine-n" name="mine-n" min="1" max="5000" value="1" data-persist style="width:120px">
+        <button class="primary" id="mine">Mine</button>
+      </div>
+      <div class="actions">
+        <button data-n="1">+1</button>
+        <button data-n="100">+100</button>
+        <button data-n="1440">+1440 (commitment depth)</button>
+      </div>
+      <p class="hint">A reveal is accepted once the commitment's block is at least 1440 blocks below the tip.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Q-day</h2>
+      <p id="qday-text" class="hint"></p>
+      <div class="actions">
+        <button class="danger" id="qday">Declare Q-day</button>
+        <button id="reset">Reset chain</button>
+      </div>
+      <p class="hint">Q-day restarts the node with DropKick starting at the next period boundary (16 blocks) and mines until the deployment is <b>active</b>. The only way back is a chain reset, which wipes the node and all sandbox data.</p>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Commitments</h2>
+    <div class="table-wrap" id="batches"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Reveals</h2>
+    <div class="table-wrap" id="reveals"></div>
+  </section>
+</main>
+<script src="app.js"></script>
+<script>
+function render(st) {
+  const s = st.status;
+  const counts = { funded: 0, committed: 0, spent: 0 };
+  st.utxos.forEach(u => counts[u.status] = (counts[u.status] || 0) + 1);
+  const stat = (k, v) => el("div", { class: "stat" }, el("div", { class: "k" }, k), el("div", { class: "v" }, v));
+  document.getElementById("stats").replaceChildren(
+    stat("Height", s.height),
+    stat("DropKick", badge(s.dropkick)),
+    stat("Wallet balance", s.balance.toFixed(4) + " BTC"),
+    stat("Outputs: free / committed / spent", `${counts.funded} / ${counts.committed} / ${counts.spent}`),
+  );
+
+  const qdayDone = s.qday_start !== null;
+  document.getElementById("qday").disabled = qdayDone;
+  document.getElementById("qday-text").textContent = qdayDone
+    ? `Q-day has happened: signalling from height ${s.qday_start}, status ${s.dropkick}.`
+    : "Q-day has not happened yet: any output can still be spent the ordinary way.";
+
+  const batches = document.getElementById("batches");
+  if (!st.batches.length) {
+    batches.replaceChildren(el("div", { class: "empty" }, "No commitments yet. Create them on the Commit page."));
+  } else {
+    batches.replaceChildren(el("table", {},
+      el("tr", {}, ["Batch", "Root", "Commit tx", "Height", "Depth", "Records", "PQ key"].map(h => el("th", {}, h))),
+      st.batches.map(b => el("tr", {},
+        el("td", {}, b.id), el("td", {}, hex(b.root)), el("td", {}, txLink(b.pub_txid)), el("td", {}, b.height),
+        el("td", {}, progress(s.height - b.height, s.commitment_depth)),
+        el("td", { class: "records" }, b.entries.map(e => el("div", {}, e.id, " ",
+          e.revealed ? badge("revealed", "ok") : badge("open", "warn")))),
+        el("td", {}, b.pqkey)))));
+  }
+
+  const reveals = document.getElementById("reveals");
+  if (!st.reveals.length) {
+    reveals.replaceChildren(el("div", { class: "empty" }, "No reveals yet."));
+  } else {
+    reveals.replaceChildren(el("table", {},
+      el("tr", {}, ["Id", "Txid", "Records", "Signature", "Rescued", "Fee", "vsize"].map(h => el("th", {}, h))),
+      st.reveals.map(r => el("tr", {},
+        el("td", {}, r.id), el("td", {}, txLink(r.txid)), el("td", {}, r.entries.join(", ")),
+        el("td", {}, r.sig_mode + (r.state_ctr !== null ? ` #${r.state_ctr}` : "")),
+        el("td", { class: "num" }, sats(r.value)), el("td", { class: "num" }, sats(r.fee)),
+        el("td", { class: "num" }, r.vsize)))));
+  }
+}
+
+async function refresh() { render(await loadState()); }
+
+async function mine(n, button) {
+  await busy(button, "Mining…", async () => {
+    await api("mine", { n });
+    toast(`Mined ${n} block(s)`);
+    await refresh();
+  });
+}
+
+document.getElementById("mine").onclick = e => mine(Number(document.getElementById("mine-n").value), e.target);
+document.querySelectorAll("button[data-n]").forEach(b => b.onclick = () => mine(Number(b.dataset.n), b));
+document.getElementById("qday").onclick = e => busy(e.target, "Q-day…", async () => {
+  if (!confirm("Declare Q-day? Ordinary spends of P2PKH/P2WPKH/P2SH/P2WSH outputs will be rejected afterwards.")) return;
+  const r = await api("qday", {});
+  toast(`DropKick active, mined ${r.mined} blocks`);
+  await refresh();
+});
+document.getElementById("reset").onclick = e => busy(e.target, "Resetting…", async () => {
+  if (!confirm("Wipe the chain and all sandbox data (outputs, keys, commitments)?")) return;
+  await api("reset", {});
+  try { Object.keys(localStorage).filter(k => k.startsWith("dk:")).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+  toast("Chain reset");
+  await refresh();
+});
+
+restoreForm();
+refresh().catch(e => toast("Error: " + e.message));
+</script>
+</body>
+</html>

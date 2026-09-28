@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DropKick · Transaction</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <div>
+    <h1>Transaction</h1>
+    <p class="lead">Look up any transaction in the node's mempool or chain. Reveals get their payload decoded and their SHRINCS signature checked; commitment transactions show the roots they publish.</p>
+  </div>
+
+  <section class="panel">
+    <label for="txid">Txid</label>
+    <div class="row">
+      <input type="text" id="txid" name="txid" class="mono" style="flex:1" data-persist>
+      <button class="primary" id="lookup">Look up</button>
+    </div>
+    <label for="recent">Or pick a sandbox transaction</label>
+    <select id="recent"></select>
+  </section>
+
+  <div id="view" class="stack"></div>
+</main>
+<script src="app.js"></script>
+<script>
+const ROLE_BADGE = {
+  "DropKick payload": "info", "commitment root": "warn", "salvage payout": "warn",
+  "rescued funds": "ok", "sandbox output": "info",
+};
+
+function recentTransactions(st) {
+  const list = [];
+  for (const r of [...st.reveals].reverse()) list.push([r.txid, `reveal ${r.id} (${r.entries.join(", ")})`]);
+  for (const b of [...st.batches].reverse()) list.push([b.pub_txid, `commitment ${b.id} (${b.entries.map(e => e.id).join(", ")})`]);
+  for (const u of [...st.utxos].reverse()) {
+    if (u.spent_txid && !list.some(([t]) => t === u.spent_txid)) list.push([u.spent_txid, `spend of ${u.id}`]);
+    list.push([u.txid, `funding of ${u.id} (${KIND_LABELS[u.kind]})`]);
+  }
+  return list;
+}
+
+function renderRecent(st) {
+  const select = document.getElementById("recent");
+  const list = recentTransactions(st);
+  select.replaceChildren(el("option", { value: "" }, list.length ? "—" : "no sandbox transactions yet"),
+    ...list.map(([txid, label]) => el("option", { value: txid }, `${label} · ${txid.slice(0, 12)}…`)));
+}
+
+function amount(v) {
+  return v === null || v === undefined ? "—" : Number(v).toFixed(8);
+}
+
+function render(t) {
+  const sections = [];
+  const status = t.status === "confirmed"
+    ? `confirmed in block ${t.block_height} (${t.confirmations} confirmations)`
+    : "in the mempool";
+  const kinds = [];
+  if (t.reveal) kinds.push(badge("DropKick reveal", "info"));
+  if (t.roots.length) kinds.push(badge("commitment publication", "warn"));
+
+  sections.push(el("section", { class: "panel" },
+    el("h2", {}, "Overview ", ...kinds),
+    el("div", { class: "grid2" },
+      kv([
+        ["txid", hex(t.txid)],
+        ["Status", status],
+        ["Block", t.blockhash ? hex(t.blockhash) : "—"],
+        ["Size / vsize", `${t.size} / ${t.vsize} vB`],
+        ["Version / locktime", `${t.version} / ${t.locktime}`],
+      ]),
+      el("div", { class: "notes" },
+        el("div", { class: "k" }, "In the sandbox"),
+        t.notes.length
+          ? t.notes.map(n => el("div", { class: "note" },
+              el("div", { class: "title" }, n.title),
+              el("div", { class: "detail" }, n.detail),
+              n.items.length ? el("ul", {}, n.items.map(i => el("li", {}, i))) : null))
+          : el("div", { class: "empty" }, "Not created by the sandbox.")))));
+
+  if (t.reveal) {
+    const r = t.reveal;
+    sections.push(el("section", { class: "panel" },
+      el("h2", {}, "Reveal payload"),
+      r.sig_valid
+        ? resultBox(true, "SHRINCS signature is valid for pk_pq over the signing form", r.sighash)
+        : resultBox(false, "SHRINCS signature does not verify", r.sighash),
+      el("div", { style: "margin-top:14px" }, kv([
+        ["Payload", `${r.payload_bytes} bytes, output #${r.payload_index}`],
+        ["Signature", `${r.sig_mode}, ${r.sig_bytes} bytes`],
+        ["pk_pq", hex(r.payload.pk_pq)],
+      ])),
+      el("div", { style: "margin-top:14px" }, payloadTables(r.payload))));
+  }
+
+  if (t.roots.length) {
+    const batches = DK.state.batches;
+    sections.push(el("section", { class: "panel" },
+      el("h2", {}, "Published aggregation roots"),
+      el("table", {},
+        el("tr", {}, ["Root", "Sandbox batch"].map(h => el("th", {}, h))),
+        t.roots.map(root => {
+          const b = batches.find(x => x.root === root);
+          return el("tr", {}, el("td", {}, hex(root, 16)),
+            el("td", {}, b ? `${b.id}: ${b.entries.map(e => e.id).join(", ")}` : "—"));
+        }))));
+  }
+
+  sections.push(el("section", { class: "panel" },
+    el("h2", {}, "Inputs"),
+    el("div", { class: "table-wrap" }, el("table", {},
+      el("tr", {}, ["#", "Spends", "Type", "Amount", "Sandbox"].map(h => el("th", {}, h))),
+      t.inputs.map(i => i.coinbase
+        ? el("tr", {}, el("td", {}, i.n), el("td", { colspan: 4 }, "coinbase"))
+        : el("tr", {}, el("td", {}, i.n), el("td", {}, txLink(i.txid), ":" + i.vout),
+            el("td", {}, i.type || "—"), el("td", { class: "num" }, amount(i.value)),
+            el("td", {}, i.sandbox || "—")))))));
+
+  sections.push(el("section", { class: "panel" },
+    el("h2", {}, "Outputs"),
+    el("div", { class: "table-wrap" }, el("table", {},
+      el("tr", {}, ["#", "Type", "Amount", "Role", "scriptPubKey", "Sandbox"].map(h => el("th", {}, h))),
+      t.outputs.map(o => el("tr", {}, el("td", {}, o.n), el("td", {}, o.type || "—"),
+        el("td", { class: "num" }, amount(o.value)),
+        el("td", {}, o.role ? badge(o.role, ROLE_BADGE[o.role] ?? "") : "—"),
+        el("td", {}, o.spk ? hex(o.spk, 12) : "—"),
+        el("td", {}, o.sandbox || "—"))))),
+    el("details", {}, el("summary", {}, "Raw transaction (hex)"), el("pre", {}, t.hex))));
+
+  document.getElementById("view").replaceChildren(...sections);
+}
+
+async function lookup(txid, button) {
+  txid = txid.trim();
+  if (!txid) return;
+  const input = document.getElementById("txid");
+  input.value = txid;
+  saveInput(input);
+  history.replaceState(null, "", "tx.html?txid=" + txid);
+  const run = async () => render(await api("tx?txid=" + encodeURIComponent(txid)));
+  if (button) await busy(button, "Loading…", run);
+  else await run().catch(e => toast("Error: " + e.message));
+}
+
+document.getElementById("lookup").onclick = e => lookup(document.getElementById("txid").value, e.target);
+document.getElementById("txid").addEventListener("keydown", e => { if (e.key === "Enter") lookup(e.target.value); });
+document.getElementById("recent").onchange = e => { if (e.target.value) lookup(e.target.value); };
+
+restoreForm();
+loadState().then(st => {
+  renderRecent(st);
+  const fromUrl = new URLSearchParams(location.search).get("txid");
+  const txid = fromUrl || document.getElementById("txid").value;
+  if (txid) lookup(txid);
+}).catch(e => toast("Error: " + e.message));
+</script>
+</body>
+</html>

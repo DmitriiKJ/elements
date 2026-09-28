@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DropKick · Reveal</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <div>
+    <h1>Reveal</h1>
+    <p class="lead">Open buried commitments in one transaction: a payload of anchors, witness records and claims, signed with SHRINCS. The sandbox assembles it; you only choose the parameters.</p>
+  </div>
+
+  <div class="result warn" id="not-enforced" hidden>
+    <div class="title">DropKick is not active yet</div>
+    Before Q-day the node does not apply the DropKick rules at all. A reveal is accepted as an ordinary spend even if the commitment is not buried 1440 blocks deep or the payload is invalid. Declare Q-day on the Chain page to see the rules enforced.
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <h2>What to open</h2>
+      <label for="pqkey">PQ key (one per reveal)</label>
+      <select id="pqkey" name="pqkey" style="max-width:420px"></select>
+      <label>Commitments under this key</label>
+      <div id="entries" class="table-wrap"></div>
+      <p class="hint" id="entries-hint"></p>
+    </section>
+
+    <section class="panel">
+      <h2>Signature and transaction</h2>
+      <label>Signature mode</label>
+      <div class="choices">
+        <label><input type="radio" name="mode" value="stateful" data-persist checked> Stateful (FXMSS, small)</label>
+        <label><input type="radio" name="mode" value="stateless" data-persist> Stateless (SLH-DSA, 5,777 bytes)</label>
+      </div>
+      <div id="state-box">
+        <label for="state_ctr">State (one-time key index)</label>
+        <input type="number" id="state_ctr" name="state_ctr" min="0" style="width:160px">
+        <p class="hint" id="state-hint"></p>
+        <div class="choices"><label><input type="checkbox" name="allow_reuse"> Allow a used state (unsafe)</label></div>
+      </div>
+
+      <label for="fee">Fee, sat (empty for automatic)</label>
+      <input type="number" id="fee" name="fee" min="0" data-persist style="width:200px">
+      <p class="hint" id="fee-hint"></p>
+
+      <label for="dest_address">Address for the rescued funds (empty for a new wallet address)</label>
+      <input type="text" id="dest_address" name="dest_address" class="mono" data-persist style="max-width:620px">
+
+      <div class="choices" style="margin-top:10px"><label><input type="checkbox" name="mine" data-persist checked> Mine a block after broadcasting</label></div>
+
+      <div class="actions">
+        <button id="check">Check (testmempoolaccept)</button>
+        <button class="primary" id="send">Broadcast reveal</button>
+      </div>
+      <p class="hint">Every signature, even one made only to check, uses up a stateful state.</p>
+    </section>
+  </div>
+
+  <section class="panel" id="result-panel" hidden>
+    <h2>Result</h2>
+    <div id="result"></div>
+  </section>
+</main>
+<script src="app.js"></script>
+<script>
+function selectedKey() {
+  return DK.state?.pqkeys.find(k => k.id === formValue("pqkey"));
+}
+
+function syncForm() {
+  document.getElementById("state-box").hidden = formValue("mode") !== "stateful";
+  const key = selectedKey();
+  const used = key ? key.used_states : [];
+  const next = used.length ? Math.max(...used) + 1 : 0;
+  document.getElementById("state_ctr").placeholder = String(next);
+  document.getElementById("state-hint").textContent = key
+    ? `Next free: ${next}. Used: ${used.length ? [...used].sort((a, b) => a - b).join(", ") : "none"}. States beyond the tree (${key.sf_depth}) fall back to stateless.`
+    : "";
+  updateFeeHint();
+}
+
+function openEntries(st, keyId) {
+  const out = [];
+  for (const b of st.batches) {
+    if (b.pqkey !== keyId) continue;
+    for (const e of b.entries) if (!e.revealed) out.push({ b, e });
+  }
+  return out;
+}
+
+function renderEntries() {
+  const st = DK.state;
+  document.getElementById("not-enforced").hidden = st.status.enforced;
+  const box = document.getElementById("entries");
+  const checked = new Set([...box.querySelectorAll("input:checked")].map(i => i.value));
+  const firstRender = !box.dataset.rendered;
+  const list = openEntries(st, formValue("pqkey"));
+  const need = st.status.commitment_depth;
+  if (!list.length) {
+    box.replaceChildren(el("div", { class: "empty" }, "No open commitments under this key."));
+  } else {
+    box.replaceChildren(el("table", {},
+      el("tr", {}, ["", "Record", "Inputs", "Witness", "Salvager", "Depth"].map(h => el("th", {}, h))),
+      list.map(({ b, e }) => {
+        const depth = st.status.height - b.height;
+        const utxos = e.utxos.map(id => st.utxos.find(u => u.id === id));
+        return el("tr", {},
+          el("td", {}, el("input", { type: "checkbox", value: e.id, checked: firstRender || checked.has(e.id),
+                                     onchange: updateFeeHint })),
+          el("td", {}, e.id, el("div", { class: "hint" }, b.id)),
+          el("td", { class: "records nowrap" }, utxos.map(u => el("div", {},
+            el("b", {}, u.id), " ",
+            el("span", { class: "muted" }, [KIND_LABELS[u.kind], DK.state.paths[u.id], sats(u.amount)]
+              .filter(Boolean).join(" · "))))),
+          el("td", { class: "nowrap" }, WIT_LABELS[e.wit_type]),
+          el("td", {}, e.salvager_spk ? sats(e.sv_sat) : "—"),
+          el("td", {}, progress(depth, need)));
+      })));
+  }
+  box.dataset.rendered = "1";
+  const ready = list.filter(({ b }) => st.status.height - b.height >= need).length;
+  document.getElementById("entries-hint").textContent = list.length
+    ? `Buried deep enough: ${ready} of ${list.length}. DropKick is ${st.status.dropkick}` +
+      (st.status.enforced ? "." : ", so depth is not enforced yet.")
+    : "";
+  updateFeeHint();
+}
+
+function updateFeeHint() {
+  const st = DK.state;
+  if (!st) return;
+  const ids = [...document.querySelectorAll("#entries input:checked")].map(i => i.value);
+  let value = 0;
+  for (const b of st.batches) for (const e of b.entries) if (ids.includes(e.id))
+    for (const id of e.utxos) value += st.utxos.find(u => u.id === id).amount;
+  const min = Math.ceil(value / 1000);
+  document.getElementById("fee-hint").textContent = value
+    ? `Rescuing ${sats(value)}. Rule minimum: ⌈V/1000⌉ = ${sats(min)}; automatic: ${sats(Math.max(40000, min))}.`
+    : "";
+}
+
+function renderKeys() {
+  const st = DK.state;
+  const select = document.getElementById("pqkey");
+  let prev = select.value;
+  if (!prev) { try { prev = localStorage.getItem("dk:reveal.html:pqkey"); } catch (e) {} }
+  const withOpen = st.pqkeys.filter(k => openEntries(st, k.id).length);
+  const keys = withOpen.length ? withOpen : st.pqkeys;
+  select.replaceChildren(...(keys.length
+    ? keys.map(k => el("option", { value: k.id }, `${k.id} ${k.label} (${openEntries(st, k.id).length} open)`))
+    : [el("option", { value: "" }, "no keys")]));
+  if (keys.some(k => k.id === prev)) select.value = prev;
+}
+
+function renderResult(r) {
+  const p = r.payload;
+  let verdict;
+  if (!r.broadcast) verdict = r.accepted
+    ? resultBox(true, "Check passed: the node would accept this reveal. Nothing was broadcast",
+        "The commitments stay open. Press \"Broadcast reveal\" to send it." +
+        (r.enforced ? "" : "\nDropKick is not active yet, so only the ordinary rules were checked."), "warn")
+    : resultBox(false, "Check failed: the node would reject this reveal", r.reason);
+  else if (!r.accepted) verdict = resultBox(false, "The node rejected the reveal", r.reason);
+  else if (!r.enforced) verdict = resultBox(true,
+    "Accepted as an ordinary spend: DropKick rules were not checked (not active yet)",
+    `${r.txid}\nAnchor depth, payload and SHRINCS signature were not validated by the node.`, "warn");
+  else verdict = resultBox(true, "The node accepted the reveal under the DropKick rules", r.txid);
+  document.getElementById("result").replaceChildren(
+    verdict,
+    el("div", { class: "grid2", style: "margin-top:14px" },
+      kv([
+        ["txid", r.broadcast && r.accepted ? txLink(r.txid) : hex(r.txid)],
+        ["Size / vsize", `${r.size} / ${r.vsize} vB`],
+        ["Payload", `${r.payload_bytes} bytes, output #${r.payload_index}`],
+        ["Signature", `${r.sig_mode}${r.state_ctr !== null ? ", state " + r.state_ctr : ""}, ${r.sig_bytes} bytes`],
+        ["Sighash", hex(r.sighash)],
+      ]),
+      kv([
+        ["Rescued V", sats(r.value)],
+        ["Fee", `${sats(r.fee)} (minimum ${sats(r.required_fee)})`],
+        ["Anchor depth", r.depths.map(d => `${d.batch}: ${d.depth}`).join(", ")],
+        ["pk_pq", hex(p.pk_pq)],
+      ])),
+    el("h2", { style: "margin-top:18px" }, "Payload"),
+    payloadTables(p),
+    el("h2", { style: "margin-top:18px" }, "Outputs"),
+    el("table", {},
+      el("tr", {}, ["#", "Type", "Amount", "scriptPubKey"].map(h => el("th", {}, h))),
+      r.outputs.map(o => el("tr", {}, el("td", {}, o.n), el("td", {}, o.type),
+        el("td", { class: "num" }, o.value === null || o.value === undefined ? "—" : o.value.toFixed(8)),
+        el("td", {}, hex(o.hex, 12))))),
+    el("details", {}, el("summary", {}, "Raw transaction (hex)"), el("pre", {}, r.hex)));
+  document.getElementById("result-panel").hidden = false;
+}
+
+async function reveal(action, button) {
+  const entries = [...document.querySelectorAll("#entries input:checked")].map(i => i.value);
+  const stateCtr = document.getElementById("state_ctr").value.trim();
+  await busy(button, action === "check" ? "Signing…" : "Broadcasting…", async () => {
+    const r = await api("reveal", {
+      entries, action,
+      mode: formValue("mode"),
+      state_ctr: stateCtr === "" ? null : Number(stateCtr),
+      allow_reuse: formValue("allow_reuse"),
+      fee: formValue("fee") === "" ? null : Number(formValue("fee")),
+      dest_address: formValue("dest_address"),
+      mine: formValue("mine"),
+    });
+    renderResult(r);
+    document.getElementById("state_ctr").value = "";
+    await loadState();
+    renderKeys();
+    renderEntries();
+    syncForm();
+  });
+}
+
+document.getElementById("check").onclick = e => reveal("check", e.target);
+document.getElementById("send").onclick = e => reveal("broadcast", e.target);
+document.getElementById("pqkey").addEventListener("change", e => {
+  saveInput(e.target);
+  delete document.getElementById("entries").dataset.rendered;
+  renderEntries();
+  syncForm();
+});
+document.getElementById("pqkey").setAttribute("data-persist", "");
+document.querySelectorAll("input[name=mode]").forEach(i => i.addEventListener("change", syncForm));
+
+restoreForm();
+loadState().then(() => { renderKeys(); renderEntries(); syncForm(); })
+  .catch(e => toast("Error: " + e.message));
+</script>
+</body>
+</html>

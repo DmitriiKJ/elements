@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DropKick · Commit</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <div>
+    <h1>Commit</h1>
+    <p class="lead">Commit to a witness together with a post-quantum key. Commitments made in one request share one aggregation tree, and only its root goes on chain.</p>
+  </div>
+
+  <div class="grid2">
+    <section class="panel">
+      <h2>Post-quantum keys (SHRINCS)</h2>
+      <label for="pq-label">Label</label>
+      <input type="text" id="pq-label" name="pq-label" placeholder="e.g. main" data-persist>
+      <label for="pq-seed">Seed, 48 bytes hex (empty for random)</label>
+      <div class="row">
+        <input type="text" id="pq-seed" name="pq-seed" class="mono" style="flex:1">
+        <button class="small" id="pq-random">Generate</button>
+      </div>
+      <label for="pq-depth">Stateful tree depth</label>
+      <input type="number" id="pq-depth" name="pq-depth" value="32" min="1" max="64" data-persist style="width:120px">
+      <p class="hint">Roughly how many stateful signatures the key gives; the rest fall back to the stateless path (5,777 bytes).</p>
+      <div class="actions"><button class="primary" id="pq-create">Create key</button></div>
+      <div class="table-wrap" id="pqkeys" style="margin-top:14px"></div>
+    </section>
+
+    <section class="panel">
+      <h2>New commitment</h2>
+      <label>Outputs (only those not yet committed)</label>
+      <div id="utxo-list"></div>
+      <p class="hint">Outputs sharing a witness (one key, xprv or script) become a single record.</p>
+
+      <label for="pqkey">PQ key</label>
+      <select id="pqkey" name="pqkey" data-persist></select>
+
+      <label>Salvager</label>
+      <div class="choices">
+        <label><input type="radio" name="sv_mode" value="none" data-persist checked> Self-salvaged (no salvager)</label>
+        <label><input type="radio" name="sv_mode" value="spk" data-persist> A salvager takes a fee</label>
+      </div>
+      <div id="sv-box">
+        <label for="salvager_spk">Salvager script pubkey (hex)</label>
+        <div class="row">
+          <input type="text" id="salvager_spk" name="salvager_spk" class="mono" style="flex:1" data-persist>
+          <button class="small" id="sv-new">New wallet address</button>
+        </div>
+        <label for="sv_sat">Salvage fee, sat</label>
+        <input type="number" id="sv_sat" name="sv_sat" value="5000" min="0" data-persist style="width:160px">
+      </div>
+
+      <div class="actions"><button class="primary" id="commit">Publish commitment</button></div>
+      <div id="commit-result"></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Published batches</h2>
+    <div class="table-wrap" id="batches"></div>
+  </section>
+</main>
+<script src="app.js"></script>
+<script>
+function syncForm() {
+  document.getElementById("sv-box").hidden = formValue("sv_mode") !== "spk";
+}
+
+function renderPqKeys(st) {
+  const box = document.getElementById("pqkeys");
+  if (!st.pqkeys.length) {
+    box.replaceChildren(el("div", { class: "empty" }, "No keys yet."));
+  } else {
+    box.replaceChildren(el("table", {},
+      el("tr", {}, ["Id", "Label", "pk_pq", "Depth", "Used states"].map(h => el("th", {}, h))),
+      st.pqkeys.map(k => el("tr", {},
+        el("td", {}, k.id), el("td", {}, k.label || "—"), el("td", {}, hex(k.pk, 6)),
+        el("td", {}, k.sf_depth),
+        el("td", {}, k.used_states.length ? [...k.used_states].sort((a, b) => a - b).join(", ") : "—")))));
+  }
+  const select = document.getElementById("pqkey");
+  const prev = select.value || (() => { try { return localStorage.getItem("dk:commit.html:pqkey"); } catch (e) { return null; } })();
+  select.replaceChildren(...(st.pqkeys.length
+    ? st.pqkeys.map(k => el("option", { value: k.id }, `${k.id} ${k.label}`))
+    : [el("option", { value: "" }, "create a key first")]));
+  if (st.pqkeys.some(k => k.id === prev)) select.value = prev;
+}
+
+function renderUtxos(st) {
+  const checked = new Set([...document.querySelectorAll("#utxo-list input:checked")].map(i => i.value));
+  const free = st.utxos.filter(u => u.status === "funded");
+  document.getElementById("utxo-list").replaceChildren(free.length
+    ? el("div", { class: "choices" }, free.map(u => el("label", {},
+        el("input", { type: "checkbox", value: u.id, checked: checked.has(u.id) }), utxoLabel(u))))
+    : el("div", { class: "empty" }, "No free outputs; create some on the Outputs page."));
+}
+
+function renderBatches(st) {
+  const box = document.getElementById("batches");
+  if (!st.batches.length) {
+    box.replaceChildren(el("div", { class: "empty" }, "No commitments yet."));
+    return;
+  }
+  const height = st.status.height, need = st.status.commitment_depth;
+  box.replaceChildren(el("table", {},
+    el("tr", {}, ["Record", "Batch / root", "Depth", "Commitment", "Leaf", "Witness", "Inputs", "Salvager", ""].map(h => el("th", {}, h))),
+    [...st.batches].reverse().flatMap(b => b.entries.map((e, i) => el("tr", {},
+      el("td", {}, e.id),
+      el("td", {}, i === 0 ? [b.id, " ", hex(b.root, 6), el("div", {}, "tx ", txLink(b.pub_txid, 6))] : ""),
+      el("td", {}, i === 0 ? progress(height - b.height, need) : ""),
+      el("td", {}, hex(e.commitment, 6)),
+      el("td", { class: "num" }, e.leaf_index),
+      el("td", {}, WIT_LABELS[e.wit_type]),
+      el("td", {}, e.utxos.join(", ")),
+      el("td", {}, e.salvager_spk ? [hex(e.salvager_spk, 4), " ", sats(e.sv_sat)] : "—"),
+      el("td", {}, e.revealed ? badge("revealed", "ok") : badge("open", "warn")))))));
+}
+
+async function refresh() {
+  const st = await loadState();
+  renderPqKeys(st);
+  renderUtxos(st);
+  renderBatches(st);
+}
+
+document.getElementById("pq-random").onclick = () => {
+  const bytes = crypto.getRandomValues(new Uint8Array(48));
+  document.getElementById("pq-seed").value = [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+};
+
+document.getElementById("pq-create").onclick = e => busy(e.target, "Generating…", async () => {
+  const k = await api("pqkey", {
+    label: formValue("pq-label"), seed_hex: formValue("pq-seed"), sf_depth: Number(formValue("pq-depth")),
+  });
+  toast(`Created key ${k.id}`);
+  document.getElementById("pq-seed").value = "";
+  document.getElementById("pqkey").value = k.id;
+  await refresh();
+  document.getElementById("pqkey").value = k.id;
+  saveInput(document.getElementById("pqkey"));
+});
+
+document.getElementById("sv-new").onclick = e => busy(e.target, "…", async () => {
+  const r = await api("salvager", {});
+  const input = document.getElementById("salvager_spk");
+  input.value = r.spk;
+  saveInput(input);
+  toast("Salvager address: " + r.address);
+});
+
+document.getElementById("commit").onclick = e => busy(e.target, "Publishing…", async () => {
+  const utxos = [...document.querySelectorAll("#utxo-list input:checked")].map(i => i.value);
+  const withSalvager = formValue("sv_mode") === "spk";
+  const { batch: b, attached } = await api("commit", {
+    utxos, pqkey: formValue("pqkey"),
+    salvager_spk: withSalvager ? formValue("salvager_spk") : "",
+    sv_sat: withSalvager ? Number(formValue("sv_sat")) : 0,
+  });
+  const boxes = [];
+  if (b) boxes.push(resultBox(true,
+    `Batch ${b.id}: ${b.entries.length} record(s) under one root, block ${b.height}`,
+    `root  ${b.root}\ntxid  ${b.pub_txid}\n` + b.entries.map(x => `${x.id}  leaf ${x.leaf_index}  ${x.commitment}  (${x.utxos.join(", ")})`).join("\n")));
+  if (attached.length) boxes.push(resultBox(true,
+    "Joined commitments that already exist",
+    "These outputs share a witness, PQ key and salvage terms with an open commitment, which already covers them; nothing new was published.\n" +
+    attached.map(a => `${a.utxos.join(", ")}  →  ${a.entry} (${a.batch})`).join("\n"), "warn"));
+  document.getElementById("commit-result").replaceChildren(...boxes);
+  await refresh();
+});
+
+document.querySelectorAll("input[name=sv_mode]").forEach(i => i.addEventListener("change", syncForm));
+restoreForm();
+syncForm();
+refresh().catch(e => toast("Error: " + e.message));
+</script>
+</body>
+</html>
