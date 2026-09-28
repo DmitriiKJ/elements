@@ -144,6 +144,7 @@ document.getElementById("fund").onclick = e => busy(e.target, "Funding…", asyn
 document.querySelectorAll("input[name=kind], input[name=key_source]").forEach(i => i.addEventListener("change", syncForm));
 restoreForm();
 syncForm();
+watchState(render);
 loadState().then(render).catch(e => toast("Error: " + e.message));
 </script>
 </body>

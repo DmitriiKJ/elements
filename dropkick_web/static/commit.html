@@ -175,6 +175,7 @@ document.getElementById("commit").onclick = e => busy(e.target, "Publishing…",
 document.querySelectorAll("input[name=sv_mode]").forEach(i => i.addEventListener("change", syncForm));
 restoreForm();
 syncForm();
+watchState(st => { renderPqKeys(st); renderUtxos(st); renderBatches(st); });
 refresh().catch(e => toast("Error: " + e.message));
 </script>
 </body>

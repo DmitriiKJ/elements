@@ -95,7 +95,8 @@ button:hover:not(:disabled) { border-color: var(--accent); }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 button.danger { color: var(--bad); border-color: var(--bad); }
 button.small { padding: 3px 9px; font-size: 12px; }
-button:disabled { opacity: .5; cursor: progress; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button.busy { cursor: progress; }
 .actions { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
 
 table { width: 100%; border-collapse: collapse; }

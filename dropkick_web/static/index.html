@@ -69,7 +69,7 @@ function render(st) {
   );
 
   const qdayDone = s.qday_start !== null;
-  document.getElementById("qday").disabled = qdayDone;
+  setOff(document.getElementById("qday"), qdayDone);
   document.getElementById("qday-text").textContent = qdayDone
     ? `Q-day has happened: signalling from height ${s.qday_start}, status ${s.dropkick}.`
     : "Q-day has not happened yet: any output can still be spent the ordinary way.";
@@ -129,6 +129,7 @@ document.getElementById("reset").onclick = e => busy(e.target, "Resetting…", a
 });
 
 restoreForm();
+watchState(render);
 refresh().catch(e => toast("Error: " + e.message));
 </script>
 </body>

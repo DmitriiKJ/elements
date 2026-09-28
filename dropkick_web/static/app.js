@@ -95,19 +95,33 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove("show"), 2500);
 }
 
-// Run an action with its button disabled; report failures as a toast.
+// Run an action with its button disabled; a button the page turned off (setOff) stays off.
 async function busy(button, label, fn) {
   const saved = button.textContent;
   button.disabled = true;
+  button.classList.add("busy");
   button.textContent = label;
   try {
     return await fn();
   } catch (e) {
     toast("Error: " + e.message);
   } finally {
-    button.disabled = false;
+    button.disabled = button.dataset.off === "1";
+    button.classList.remove("busy");
     button.textContent = saved;
   }
+}
+
+function setOff(button, off) {
+  button.dataset.off = off ? "1" : "";
+  button.disabled = off;
+}
+
+// Re-read the state when the tab comes back into view, so a page left open does not go stale.
+function watchState(render) {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") loadState().then(render).catch(() => {});
+  });
 }
 
 function resultBox(ok, title, detail, kind) {

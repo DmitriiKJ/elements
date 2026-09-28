@@ -230,6 +230,7 @@ document.getElementById("pqkey").setAttribute("data-persist", "");
 document.querySelectorAll("input[name=mode]").forEach(i => i.addEventListener("change", syncForm));
 
 restoreForm();
+watchState(() => { renderKeys(); renderEntries(); syncForm(); });
 loadState().then(() => { renderKeys(); renderEntries(); syncForm(); })
   .catch(e => toast("Error: " + e.message));
 </script>

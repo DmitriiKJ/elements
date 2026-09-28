@@ -151,6 +151,7 @@ document.getElementById("txid").addEventListener("keydown", e => { if (e.key ===
 document.getElementById("recent").onchange = e => { if (e.target.value) lookup(e.target.value); };
 
 restoreForm();
+watchState(renderRecent);
 loadState().then(st => {
   renderRecent(st);
   const fromUrl = new URLSearchParams(location.search).get("txid");
