@@ -106,6 +106,7 @@ BASE_SCRIPTS = [
     'feature_block_v4.py',
     'feature_pak.py --legacy-wallet',
     'feature_blocksign.py --legacy-wallet',
+    'feature_dropkick.py',
     'feature_shrincs_spend.py',
     'feature_shrincs_standardness.py',
     'feature_shrincs_activation.py',

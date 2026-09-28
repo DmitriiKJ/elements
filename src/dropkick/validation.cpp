@@ -14,6 +14,27 @@ namespace DropKickValidation
 
     bool CheckAnchorBounds(const DropKickPayloadEntity& payload, std::string& err)
     {
+        if (payload.anchors.empty() || payload.anchors.size() > DropKickConstEnums::MAX_ANCHORS)
+        {
+            err = "Payload carries no anchors, or more than the limit allows.";
+            return false;
+        }
+        if (payload.salvagers.size() > DropKickConstEnums::MAX_SALVAGERS)
+        {
+            err = "Payload carries more salvager entries than the limit allows.";
+            return false;
+        }
+        if (payload.witnesses.empty() || payload.witnesses.size() > DropKickConstEnums::MAX_WITNESSES)
+        {
+            err = "Payload carries no witness records, or more than the limit allows.";
+            return false;
+        }
+        if (payload.claims.empty() || payload.claims.size() > DropKickConstEnums::MAX_CLAIMS)
+        {
+            err = "Payload carries no claims, or more than the limit allows.";
+            return false;
+        }
+
         for (const DropKickAnchor& anchor : payload.anchors)
         {
             if (!anchor.CheckAnchorLimits())
@@ -34,21 +55,30 @@ namespace DropKickValidation
             return false;
         }
 
+        std::vector<bool> anchor_named(payload.anchors.size(), false);
         for (const DropKickWitness& w : payload.witnesses)
         {
-            if (w.anchorIndex >= payload.anchors.size()) 
-            { 
+            if (w.anchorIndex >= payload.anchors.size())
+            {
                 err = "Witness record names an anchor outside the payload.";
                 return false;
             }
+            anchor_named[w.anchorIndex] = true;
 
-            if (!w.CheckWitness()) 
-            { 
-                err = "Witness record is malformed for its type."; return false; 
+            if (!w.CheckWitness())
+            {
+                err = "Witness record is malformed for its type."; return false;
             }
         }
 
+        if (std::find(anchor_named.begin(), anchor_named.end(), false) != anchor_named.end())
+        {
+            err = "Anchor is named by no witness record.";
+            return false;
+        }
+
         std::vector<bool> claimed(tx.vin.size(), false);
+        std::vector<bool> witness_named(payload.witnesses.size(), false);
 
         for (const DropKickClaim& claim : payload.claims)
         {
@@ -68,6 +98,13 @@ namespace DropKickValidation
                 err = "Claim names a witness record outside the payload.";
                 return false;
             }
+            witness_named[claim.witIndex] = true;
+        }
+
+        if (std::find(witness_named.begin(), witness_named.end(), false) != witness_named.end())
+        {
+            err = "Witness record is named by no claim.";
+            return false;
         }
 
         for (uint32_t i = 0; i < tx.vin.size(); i++)
@@ -256,6 +293,7 @@ namespace DropKickValidation
     bool CheckBinding(const DropKickPayloadEntity& payload, const std::vector<CMutableTransaction>& anchor_txs, std::string& err)
     {
         uint256 commit, root;
+        std::set<uint256> seen;
         for (const DropKickWitness& witness : payload.witnesses)
         {
             if (witness.anchorIndex >= payload.anchors.size())
@@ -281,7 +319,14 @@ namespace DropKickValidation
                 return false;
             }
 
-            if (!DropKickHashes::ComputeAggRoot(commit, witness.aggPath, witness.leafIndex, root))
+            if (!seen.insert(commit).second)
+            {
+                err = "Two witness records open the same commitment.";
+                return false;
+            }
+
+            const uint256 leaf = DropKickHashes::AggLeafHash(commit);
+            if (!DropKickHashes::ComputeAggRoot(leaf, witness.aggPath, witness.leafIndex, root))
             {
                 err = "Aggregation path or commit leaf index is too long";
                 return false;

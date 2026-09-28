@@ -10,6 +10,7 @@
 namespace DropKickConstEnums
 {
     static constexpr size_t PUBKEY_SIZE = 33;
+    static constexpr size_t UNCOMPRESSED_PUBKEY_SIZE = 65;
     static constexpr size_t XPRV_SIZE = 78;
 
     static constexpr int COMMITMENT_DEPTH = 1440;
@@ -18,6 +19,13 @@ namespace DropKickConstEnums
 
     static constexpr size_t MAX_TX_DEPTH = 16;
     static constexpr size_t MAX_TX_LEN = 100000;
+
+    // This limits is not defined in the spec yet
+    static constexpr size_t MAX_ANCHORS = 16;
+    static constexpr size_t MAX_SALVAGERS = 64;
+    static constexpr size_t MAX_WITNESSES = 64;
+    static constexpr size_t MAX_CLAIMS = 256;
+    static constexpr size_t MAX_PAYLOAD_SIZE = 100000;
 
     enum DropKickWitType
     {
@@ -35,6 +43,8 @@ namespace DropKickConstEnums
         P2WSH = 5
     };
 }
+
+bool IsDropKickPubKey(const std::vector<uint8_t>& v);
 
 template <size_t Size>
 struct FixedBytesFormatter

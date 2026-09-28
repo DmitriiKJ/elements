@@ -101,14 +101,14 @@ namespace DropKickStatement
         case DropKickOutType::P2PKH:
         case DropKickOutType::P2WPKH:
         {
-            if (witness.size() != PUBKEY_SIZE) return false;
+            if (!IsDropKickPubKey(witness)) return false;
             uint160 res = Hash160(witness);
             statement_out.assign(res.begin(), res.end());
             break;
         }
         case DropKickOutType::P2SH_P2WPKH:
         {
-            if (witness.size() != PUBKEY_SIZE) return false;
+            if (!IsDropKickPubKey(witness)) return false;
             const uint160 kh = Hash160(witness);
             const CScript rs = CScript() << OP_0 << std::vector<unsigned char>(kh.begin(), kh.end());
             const uint160 h = Hash160(rs);

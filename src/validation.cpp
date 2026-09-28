@@ -2794,17 +2794,21 @@ static bool CheckDropKickRules(const CTransaction& tx, const CCoinsViewCache& vi
         spent.push_back(std::move(out));
     }
 
-    if (!DropKickPayload::HasPayloadOutput(tx)) 
+    bool rescues = false;
+    for (unsigned int i = 0; i < tx.vin.size(); ++i)
     {
-        for (unsigned int i = 0; i < tx.vin.size(); ++i) 
+        if (tx.vin[i].m_is_pegin) continue;
+        if (DropKickValidation::HasKnowledgeAsymmetry(spent[i].scriptPubKey))
         {
-            if (tx.vin[i].m_is_pegin) continue;
-            if (DropKickValidation::HasKnowledgeAsymmetry(spent[i].scriptPubKey)) 
-            {
-                return state.Invalid(TxValidationResult::TX_CONSENSUS, "dropkick-unclaimed-input", "input spends a hash-protected output outside a DropKick reveal");
-            }
+            rescues = true;
+            break;
         }
-        return true;
+    }
+    if (!rescues) return true;
+
+    if (!DropKickPayload::HasPayloadOutput(tx))
+    {
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "dropkick-unclaimed-input", "input spends a hash-protected output outside a DropKick reveal");
     }
 
     const NodeChainAccess chain{chainman};

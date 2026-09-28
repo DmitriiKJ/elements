@@ -858,7 +858,7 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].min_activation_height = 0; // No activation delay
-        consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].nPeriod = 128; // test ability to change from default
+        consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].nPeriod = 128;
         consensus.vDeployments[Consensus::DEPLOYMENT_SIMPLICITY].nThreshold = 128;
 
         // SHRINCS: never activate by default
@@ -869,11 +869,13 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nPeriod = 128; // test ability to change from default
         consensus.vDeployments[Consensus::DEPLOYMENT_SHRINCS].nThreshold = 128;
         
-        // DropKick
+        // DropKick: never activate by default
         consensus.vDeployments[Consensus::DEPLOYMENT_DROPKICK].bit = 23;
         consensus.vDeployments[Consensus::DEPLOYMENT_DROPKICK].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
         consensus.vDeployments[Consensus::DEPLOYMENT_DROPKICK].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_DROPKICK].min_activation_height = 0; // No activation delay
+        consensus.vDeployments[Consensus::DEPLOYMENT_DROPKICK].nPeriod = 128; // test ability to change from default
+        consensus.vDeployments[Consensus::DEPLOYMENT_DROPKICK].nThreshold = 128;
 
         consensus.nMinimumChainWork = uint256{};
         consensus.defaultAssumeValid = uint256{};

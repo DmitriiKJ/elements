@@ -46,8 +46,9 @@ namespace DropKickPayload
             found = true;
         }
         if (!found) return false;
+        if (data.size() > DropKickConstEnums::MAX_PAYLOAD_SIZE) return false;
 
-        try 
+        try
         {
             DataStream s{data};
             s >> payload_out;

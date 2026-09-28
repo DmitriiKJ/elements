@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 #include <confidential_validation.h>
+#include <set>
 
 namespace DropKickValidation
 {
